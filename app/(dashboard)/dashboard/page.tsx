@@ -1,6 +1,7 @@
 "use client";
 
 import TopBar from "@/components/layout/TopBar";
+import { useToast } from "@/components/ui/Toast";
 import {
   Tag,
   ShoppingBag,
@@ -69,13 +70,12 @@ const recentActivity = [
 ];
 
 const quickActions = [
-  { label: "New Listing", icon: Plus, href: "/dashboard/listings/new", primary: true },
-  { label: "AI Writer", icon: Tag, href: "/dashboard/ai-writer", primary: false },
-  { label: "View Orders", icon: ShoppingBag, href: "/dashboard/orders", primary: false },
-  { label: "Sync Shop", icon: RefreshCw, href: "#", primary: false },
+  { label: "New Listing",  icon: Plus,        href: "/dashboard/listings/new", primary: true  },
+  { label: "AI Writer",   icon: Tag,         href: "/dashboard/ai-writer",    primary: false },
+  { label: "View Orders", icon: ShoppingBag, href: "/dashboard/orders",        primary: false },
 ];
 
-// ─── Stat Card ────────────────────────────────────────────────────────────
+// ─── Page helpers ────────────────────────────────────────────────────────────
 function StatCard({
   label,
   value,
@@ -174,6 +174,7 @@ function StatCard({
 
 // ─── Page ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
+  const { info } = useToast();
   return (
     <>
       <TopBar
@@ -262,52 +263,30 @@ export default function DashboardPage() {
                 return (
                   <Link key={action.label} href={action.href} style={{ textDecoration: "none" }}>
                     <div
-                      style={{
-                        padding: "14px 16px",
-                        borderRadius: 10,
-                        background: action.primary
-                          ? "linear-gradient(135deg, hsl(var(--brand-primary) / 0.15), hsl(var(--brand-secondary) / 0.1))"
-                          : "hsl(var(--bg-elevated))",
-                        border: action.primary
-                          ? "1px solid hsl(var(--brand-primary) / 0.3)"
-                          : "1px solid hsl(var(--bg-border))",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        cursor: "pointer",
-                        transition: "opacity 0.15s, transform 0.15s",
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = "0.8"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = "1"; }}
+                      style={{ padding: "14px 16px", borderRadius: 10, background: action.primary ? "linear-gradient(135deg, hsl(var(--brand-primary) / 0.15), hsl(var(--brand-secondary) / 0.1))" : "hsl(var(--bg-elevated))", border: action.primary ? "1px solid hsl(var(--brand-primary) / 0.3)" : "1px solid hsl(var(--bg-border))", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", transition: "opacity 0.15s" }}
+                      onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.opacity = "0.8"}
+                      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.opacity = "1"}
                     >
-                      <div
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 8,
-                          background: action.primary
-                            ? "hsl(var(--brand-primary) / 0.2)"
-                            : "hsl(var(--bg-overlay))",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: action.primary ? "hsl(var(--brand-primary) / 0.2)" : "hsl(var(--bg-overlay))", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Icon size={15} color={action.primary ? "hsl(var(--brand-primary))" : "hsl(var(--text-secondary))"} />
                       </div>
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: action.primary ? "hsl(var(--text-primary))" : "hsl(var(--text-secondary))",
-                        }}
-                      >
-                        {action.label}
-                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: action.primary ? "hsl(var(--text-primary))" : "hsl(var(--text-secondary))" }}>{action.label}</span>
                     </div>
                   </Link>
                 );
               })}
+              {/* Sync Shop — button action, not a link */}
+              <div
+                onClick={() => info("Sync requires Etsy connection", "Go to Settings → Connect Etsy Shop to enable live sync.")}
+                style={{ padding: "14px 16px", borderRadius: 10, background: "hsl(var(--bg-elevated))", border: "1px solid hsl(var(--bg-border))", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", transition: "opacity 0.15s" }}
+                onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.opacity = "0.8"}
+                onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.opacity = "1"}
+              >
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "hsl(var(--bg-overlay))", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <RefreshCw size={15} color="hsl(var(--text-secondary))" />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-secondary))" }}>Sync Shop</span>
+              </div>
             </div>
 
             {/* Phase roadmap teaser */}

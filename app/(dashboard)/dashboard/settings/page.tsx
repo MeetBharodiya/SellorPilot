@@ -4,8 +4,23 @@ import TopBar from "@/components/layout/TopBar";
 import { Settings, Key, Zap, Bell, Shield, Save, ExternalLink, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 
+const DEFAULT_NOTIFICATIONS = [
+  { key: "new_order",   label: "New order received",            desc: "Alert when a buyer places an order",                    on: true  },
+  { key: "low_stock",   label: "Low stock alert",               desc: "Alert when inventory drops below threshold",             on: true  },
+  { key: "listing_exp", label: "Listing expired",               desc: "Alert when a listing expires on Etsy",                  on: false },
+  { key: "sched_pub",   label: "Scheduled listing published",   desc: "Confirm when a scheduled listing goes live",            on: true  },
+];
+
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
+  const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS);
+
+  const toggleNotification = (key: string) => {
+    setNotifications(prev =>
+      prev.map(n => n.key === key ? { ...n, on: !n.on } : n)
+    );
+  };
+
   const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2500); };
 
   return (
@@ -111,18 +126,15 @@ export default function SettingsPage() {
             <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--text-primary))" }}>Notifications</div>
           </div>
           <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 12 }}>
-            {[
-              { label: "New order received", desc: "Alert when a buyer places an order", on: true },
-              { label: "Low stock alert", desc: "Alert when inventory drops below threshold", on: true },
-              { label: "Listing expired", desc: "Alert when a listing expires on Etsy", on: false },
-              { label: "Scheduled listing published", desc: "Confirm when a scheduled listing goes live", on: true },
-            ].map(n => (
-              <div key={n.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid hsl(var(--bg-border) / 0.5)" }}>
+            {notifications.map(n => (
+              <div key={n.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid hsl(var(--bg-border) / 0.5)" }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-primary))" }}>{n.label}</div>
                   <div style={{ fontSize: 12, color: "hsl(var(--text-muted))" }}>{n.desc}</div>
                 </div>
                 <button
+                  onClick={() => toggleNotification(n.key)}
+                  title={n.on ? "Click to disable" : "Click to enable"}
                   style={{
                     width: 40,
                     height: 22,
@@ -132,9 +144,19 @@ export default function SettingsPage() {
                     cursor: "pointer",
                     position: "relative",
                     transition: "background 0.2s",
+                    flexShrink: 0,
                   }}
                 >
-                  <span style={{ position: "absolute", top: 3, left: n.on ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
+                  <span style={{
+                    position: "absolute",
+                    top: 3,
+                    left: n.on ? 21 : 3,
+                    width: 16,
+                    height: 16,
+                    borderRadius: "50%",
+                    background: "white",
+                    transition: "left 0.2s ease",
+                  }} />
                 </button>
               </div>
             ))}
