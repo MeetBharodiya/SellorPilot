@@ -1,26 +1,329 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
+/* ================================
+   DESIGN TOKENS
+================================ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand Colors */
+  --brand-primary: 250 84% 65%;       /* violet */
+  --brand-secondary: 217 91% 60%;     /* blue */
+  --brand-accent: 160 84% 39%;        /* emerald */
+
+  /* Backgrounds */
+  --bg-base: 222 47% 6%;
+  --bg-surface: 222 40% 9%;
+  --bg-elevated: 222 35% 12%;
+  --bg-overlay: 222 30% 15%;
+  --bg-border: 222 25% 20%;
+
+  /* Text */
+  --text-primary: 210 40% 96%;
+  --text-secondary: 215 20% 65%;
+  --text-muted: 215 15% 45%;
+
+  /* Status */
+  --status-success: 160 84% 39%;
+  --status-warning: 38 92% 50%;
+  --status-error: 0 72% 51%;
+  --status-info: 217 91% 60%;
+
+  /* Sidebar */
+  --sidebar-width: 240px;
+  --topbar-height: 64px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ================================
+   RESET & BASE
+================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: hsl(var(--bg-base));
+  color: hsl(var(--text-primary));
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* ================================
+   SCROLLBAR
+================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--bg-surface));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--bg-border));
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(215 20% 35%);
+}
+
+/* ================================
+   TYPOGRAPHY
+================================ */
+.font-display {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+/* ================================
+   GLASS CARD
+================================ */
+.glass {
+  background: hsl(var(--bg-surface));
+  border: 1px solid hsl(var(--bg-border));
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+}
+
+.glass-elevated {
+  background: hsl(var(--bg-elevated));
+  border: 1px solid hsl(var(--bg-border));
+  border-radius: 12px;
+}
+
+/* ================================
+   STAT CARD GLOW VARIANTS
+================================ */
+.glow-violet {
+  box-shadow: 0 0 30px -8px hsl(var(--brand-primary) / 0.3);
+}
+.glow-blue {
+  box-shadow: 0 0 30px -8px hsl(var(--brand-secondary) / 0.3);
+}
+.glow-emerald {
+  box-shadow: 0 0 30px -8px hsl(var(--status-success) / 0.3);
+}
+.glow-amber {
+  box-shadow: 0 0 30px -8px hsl(var(--status-warning) / 0.3);
+}
+
+/* ================================
+   GRADIENT TEXT
+================================ */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(var(--brand-secondary)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ================================
+   SIDEBAR NAV ITEM
+================================ */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: hsl(var(--text-secondary));
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+.nav-item:hover {
+  background: hsl(var(--bg-elevated));
+  color: hsl(var(--text-primary));
+  border-color: hsl(var(--bg-border));
+}
+.nav-item.active {
+  background: linear-gradient(135deg, hsl(var(--brand-primary) / 0.15), hsl(var(--brand-secondary) / 0.1));
+  color: hsl(var(--text-primary));
+  border-color: hsl(var(--brand-primary) / 0.3);
+}
+.nav-item.active svg {
+  color: hsl(var(--brand-primary));
+}
+
+/* ================================
+   BADGE
+================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+}
+
+/* ================================
+   BUTTON BASE
+================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(250 84% 55%));
+  color: white;
+  border-color: hsl(var(--brand-primary));
+}
+.btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px -4px hsl(var(--brand-primary) / 0.5);
+}
+.btn-secondary {
+  background: hsl(var(--bg-elevated));
+  color: hsl(var(--text-primary));
+  border-color: hsl(var(--bg-border));
+}
+.btn-secondary:hover {
+  background: hsl(var(--bg-overlay));
+  border-color: hsl(215 20% 30%);
+}
+.btn-ghost {
+  background: transparent;
+  color: hsl(var(--text-secondary));
+}
+.btn-ghost:hover {
+  background: hsl(var(--bg-elevated));
+  color: hsl(var(--text-primary));
+}
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.btn-lg {
+  padding: 10px 20px;
+  font-size: 15px;
+}
+
+/* ================================
+   INPUT
+================================ */
+.input {
+  width: 100%;
+  padding: 9px 12px;
+  background: hsl(var(--bg-elevated));
+  border: 1px solid hsl(var(--bg-border));
+  border-radius: 8px;
+  color: hsl(var(--text-primary));
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  outline: none;
+}
+.input::placeholder {
+  color: hsl(var(--text-muted));
+}
+.input:focus {
+  border-color: hsl(var(--brand-primary) / 0.6);
+  box-shadow: 0 0 0 3px hsl(var(--brand-primary) / 0.1);
+}
+
+/* ================================
+   TABLE
+================================ */
+.table-base {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table-base th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--text-muted));
+  border-bottom: 1px solid hsl(var(--bg-border));
+}
+.table-base td {
+  padding: 12px 14px;
+  color: hsl(var(--text-secondary));
+  border-bottom: 1px solid hsl(var(--bg-border) / 0.5);
+  transition: background 0.1s ease;
+}
+.table-base tr:hover td {
+  background: hsl(var(--bg-elevated));
+  color: hsl(var(--text-primary));
+}
+.table-base tr:last-child td {
+  border-bottom: none;
+}
+
+/* ================================
+   ANIMATIONS
+================================ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.skeleton {
+  background: linear-gradient(90deg,
+    hsl(var(--bg-elevated)) 25%,
+    hsl(var(--bg-overlay)) 50%,
+    hsl(var(--bg-elevated)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+/* ================================
+   LIVE INDICATOR
+================================ */
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: hsl(var(--status-success));
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* ================================
+   DIVIDER
+================================ */
+.divider {
+  height: 1px;
+  background: hsl(var(--bg-border));
+  margin: 8px 0;
 }
