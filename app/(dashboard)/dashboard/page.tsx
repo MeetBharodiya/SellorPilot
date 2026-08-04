@@ -18,7 +18,16 @@ import {
 import Link from "next/link";
 
 // ─── Mock Data (replaced with real API data after backend integration) ─────
-const stats = [
+type StatColor = "violet" | "blue" | "emerald" | "amber";
+
+const stats: {
+  label: string;
+  value: string;
+  change: null;
+  icon: React.ElementType;
+  color: StatColor;
+  href: string;
+}[] = [
   {
     label: "Active Listings",
     value: "—",
@@ -76,8 +85,9 @@ function StatCard({
 }: {
   label: string;
   value: string;
+  change?: null;
   icon: React.ElementType;
-  color: "violet" | "blue" | "emerald" | "amber";
+  color: StatColor;
   href: string;
 }) {
   const colors = {

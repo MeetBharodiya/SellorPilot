@@ -149,7 +149,7 @@ export default function Sidebar() {
             ON
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "hsl(var(--text-primary))", truncate: "true" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "hsl(var(--text-primary))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               Orra Nails
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
