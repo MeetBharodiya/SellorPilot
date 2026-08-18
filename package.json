@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.28",
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
     "ai": "^7.0.50",
     "bullmq": "^6.0.6",
