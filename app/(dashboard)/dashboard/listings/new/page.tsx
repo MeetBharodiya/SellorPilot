@@ -415,6 +415,7 @@ export default function NewListingPage() {
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [aiResult, setAiResult] = useState<AIResult | null>(null);
   const [isDemo, setIsDemo] = useState(false);
+  const [etsyUrl, setEtsyUrl] = useState<string | null>(null);
 
   const addPhotos = useCallback((files: File[]) => {
     const newPhotos = files.slice(0, 10 - photos.length).map((file) => ({
@@ -459,12 +460,32 @@ export default function NewListingPage() {
   };
 
   const handleSave = async () => {
+    if (!aiResult) return;
     setStep("saving");
-    // TODO: call /api/etsy/listings to create draft on Etsy
-    // For now simulate the API call
-    await new Promise((r) => setTimeout(r, 1800));
-    success("Draft created on Etsy!", "Find it in your Etsy dashboard to publish.");
-    setStep("done");
+
+    try {
+      const formData = new FormData();
+      photos.forEach((p) => formData.append("images", p.file));
+      formData.append("saveToEtsy", "true");
+
+      const res  = await fetch("/api/ai/generate-listing", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (data.saved) {
+        success("Draft saved to Etsy! 🎉", "Find it in your shop to review and publish.");
+        setEtsyUrl(data.etsyListingUrl ?? null);
+      } else if (data.saveError) {
+        if (data.saveError.includes("No Etsy shop")) {
+          toastError("Shop not connected", "Go to Settings → Connect Etsy Shop first.");
+        } else {
+          toastError("Etsy save failed", data.saveError);
+        }
+      }
+      setStep("done");
+    } catch (err: any) {
+      toastError("Save failed", err.message);
+      setStep("result");
+    }
   };
 
   const handleNewListing = () => {
