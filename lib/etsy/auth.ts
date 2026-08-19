@@ -3,7 +3,7 @@
  * Etsy uses PKCE instead of client_secret for security
  */
 import crypto from "crypto";
-import { prisma } from "@/lib/db";
+import prisma from "@/lib/db";
 
 export const ETSY_SCOPES = [
   "listings_r",

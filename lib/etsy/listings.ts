@@ -146,7 +146,7 @@ export async function uploadListingImage(
   form.append("rank", String(rank));
   form.append(
     "image",
-    new Blob([imageBuffer], { type: mimeType }),
+    new Blob([new Uint8Array(imageBuffer)], { type: mimeType }),
     `photo_${rank}.jpg`
   );
 

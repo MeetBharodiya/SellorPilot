@@ -1,6 +1,6 @@
 import { etsy } from "./client";
 import { getActiveShop } from "./auth";
-import { prisma } from "@/lib/db";
+import prisma from "@/lib/db";
 
 export interface EtsyShop {
   shop_id:        number;
