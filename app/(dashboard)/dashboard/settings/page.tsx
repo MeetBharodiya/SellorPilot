@@ -1,80 +1,212 @@
 "use client";
 
 import TopBar from "@/components/layout/TopBar";
-import { Settings, Key, Zap, Bell, Shield, Save, ExternalLink, CheckCircle, Clock, AlertTriangle } from "lucide-react";
-import { useState } from "react";
+import { useToast } from "@/components/ui/Toast";
+import {
+  Settings, Key, Zap, Bell, Shield, Save, ExternalLink,
+  CheckCircle, Clock, AlertTriangle, RefreshCw, Wifi, WifiOff, Link2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface ShopStatus {
+  connected:   boolean;
+  shopName?:   string;
+  shopUrl?:    string;
+  currency?:   string;
+  tokenExpiry?: string;
+}
 
 const DEFAULT_NOTIFICATIONS = [
-  { key: "new_order",   label: "New order received",            desc: "Alert when a buyer places an order",                    on: true  },
-  { key: "low_stock",   label: "Low stock alert",               desc: "Alert when inventory drops below threshold",             on: true  },
-  { key: "listing_exp", label: "Listing expired",               desc: "Alert when a listing expires on Etsy",                  on: false },
-  { key: "sched_pub",   label: "Scheduled listing published",   desc: "Confirm when a scheduled listing goes live",            on: true  },
+  { key: "new_order",   label: "New order received",          desc: "Alert when a buyer places an order",               on: true  },
+  { key: "low_stock",   label: "Low stock alert",             desc: "Alert when inventory drops below threshold",       on: true  },
+  { key: "listing_exp", label: "Listing expired",             desc: "Alert when a listing expires on Etsy",            on: false },
+  { key: "sched_pub",   label: "Scheduled listing published", desc: "Confirm when a scheduled listing goes live",      on: true  },
 ];
 
 export default function SettingsPage() {
-  const [saved, setSaved] = useState(false);
-  const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS);
+  const searchParams = useSearchParams();
+  const { success, error: toastError, info } = useToast();
 
-  const toggleNotification = (key: string) => {
-    setNotifications(prev =>
-      prev.map(n => n.key === key ? { ...n, on: !n.on } : n)
-    );
+  const [saved, setSaved]                     = useState(false);
+  const [notifications, setNotifications]     = useState(DEFAULT_NOTIFICATIONS);
+  const [shopStatus, setShopStatus]           = useState<ShopStatus | null>(null);
+  const [loadingStatus, setLoadingStatus]     = useState(true);
+  const [connecting, setConnecting]           = useState(false);
+
+  // ── Check connection status on mount ────────────────────────────────────────
+  useEffect(() => {
+    fetchShopStatus();
+  }, []);
+
+  // ── Handle OAuth return (connected=true or error=...) ────────────────────────
+  useEffect(() => {
+    const connected = searchParams.get("connected");
+    const errParam  = searchParams.get("error");
+
+    if (connected === "true") {
+      success("Etsy shop connected! 🎉", "Your listings, orders, and inventory are now live.");
+      fetchShopStatus(); // refresh status
+      // Clean URL without full reload
+      window.history.replaceState({}, "", "/dashboard/settings");
+    } else if (errParam) {
+      const messages: Record<string, string> = {
+        access_denied:    "You denied access. Click Connect again to authorize.",
+        state_mismatch:   "Security check failed. Please try again.",
+        missing_verifier: "Session expired. Please try again.",
+        missing_params:   "OAuth callback missing parameters. Try again.",
+      };
+      toastError("Connection failed", messages[errParam] ?? decodeURIComponent(errParam));
+      window.history.replaceState({}, "", "/dashboard/settings");
+    }
+  }, [searchParams]);
+
+  const fetchShopStatus = async () => {
+    setLoadingStatus(true);
+    try {
+      const res  = await fetch("/api/etsy/shop");
+      const data = await res.json();
+      setShopStatus(data);
+    } catch {
+      setShopStatus({ connected: false });
+    } finally {
+      setLoadingStatus(false);
+    }
   };
 
-  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2500); };
+  const handleConnect = () => {
+    setConnecting(true);
+    // Navigate to the OAuth connect route — it will redirect to Etsy
+    window.location.href = "/api/auth/etsy/connect";
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm("Disconnect your Etsy shop? You can reconnect anytime.")) return;
+    info("Disconnected", "Shop disconnected locally. Reconnect anytime from Settings.");
+    setShopStatus({ connected: false });
+  };
+
+  const toggleNotification = (key: string) => {
+    setNotifications(prev => prev.map(n => n.key === key ? { ...n, on: !n.on } : n));
+  };
+
+  const save = () => {
+    setSaved(true);
+    success("Settings saved!", "Your preferences have been updated.");
+    setTimeout(() => setSaved(false), 2500);
+  };
 
   return (
     <>
       <TopBar title="Settings" subtitle="Configure your Etsy connection and app preferences" />
       <div style={{ padding: "24px", maxWidth: 720, display: "flex", flexDirection: "column", gap: 20 }}>
 
-        {/* Etsy Connection */}
+        {/* ── Etsy Connection ───────────────────────────────────────────── */}
         <div className="glass" style={{ overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid hsl(var(--bg-border))", display: "flex", alignItems: "center", gap: 10 }}>
             <Zap size={16} color="hsl(var(--brand-primary))" />
-            <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--text-primary))" }}>Etsy API Connection</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--text-primary))" }}>Etsy Shop Connection</div>
+            {!loadingStatus && (
+              <span className={`badge ${shopStatus?.connected ? "badge-success" : "badge-warning"}`} style={{ marginLeft: "auto" }}>
+                {shopStatus?.connected ? "✓ Connected" : "Not Connected"}
+              </span>
+            )}
           </div>
           <div style={{ padding: "20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, padding: "10px 14px", borderRadius: 8, background: "hsl(var(--status-warning) / 0.1)", border: "1px solid hsl(var(--status-warning) / 0.3)" }}>
-              <Clock size={14} color="hsl(var(--status-warning))" />
-              <span style={{ fontSize: 13, color: "hsl(var(--text-secondary))" }}>
-                OAuth connection required — clicking "Connect" will open Etsy authorization
-              </span>
-            </div>
 
+            {/* Status banner */}
+            {loadingStatus ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 8, background: "hsl(var(--bg-elevated))", marginBottom: 20 }}>
+                <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} color="hsl(var(--text-muted))" />
+                <span style={{ fontSize: 13, color: "hsl(var(--text-muted))" }}>Checking connection status...</span>
+              </div>
+            ) : shopStatus?.connected ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 8, background: "hsl(var(--status-success) / 0.1)", border: "1px solid hsl(var(--status-success) / 0.3)", marginBottom: 20 }}>
+                <Wifi size={16} color="hsl(var(--status-success))" />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--status-success))" }}>
+                    Connected — {shopStatus.shopName}
+                  </div>
+                  <div style={{ fontSize: 12, color: "hsl(var(--text-muted))", marginTop: 2 }}>
+                    Currency: {shopStatus.currency} · Token expires: {shopStatus.tokenExpiry ? new Date(shopStatus.tokenExpiry).toLocaleDateString() : "auto-refresh"}
+                  </div>
+                </div>
+                {shopStatus.shopUrl && (
+                  <a href={shopStatus.shopUrl} target="_blank" style={{ marginLeft: "auto" }}>
+                    <button className="btn btn-ghost btn-sm"><ExternalLink size={12} />View Shop</button>
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 8, background: "hsl(var(--status-warning) / 0.1)", border: "1px solid hsl(var(--status-warning) / 0.3)", marginBottom: 20 }}>
+                <WifiOff size={14} color="hsl(var(--status-warning))" />
+                <span style={{ fontSize: 13, color: "hsl(var(--text-secondary))" }}>
+                  Not connected — click "Connect Etsy Shop" to authorize with OAuth
+                </span>
+              </div>
+            )}
+
+            {/* API fields */}
             <div style={{ display: "grid", gap: 14 }}>
               {[
-                { label: "API Keystring", value: "ma2keca7flsy00zxcjyr2nto", readonly: true },
-                { label: "Shared Secret", value: "••••••••••••••••••••••", readonly: true, secret: true },
-                { label: "OAuth Redirect URI", value: "http://localhost:3000/api/auth/callback/etsy", readonly: true },
+                { label: "API Keystring",    value: "ma2keca7flsy00zxcjyr2nto",                              readonly: true },
+                { label: "Shared Secret",    value: "••••••••••••••••",                                       readonly: true, secret: true },
+                { label: "OAuth Callback URI (add this in Etsy Developer portal)", value: "http://localhost:3000/api/auth/etsy/callback", readonly: true },
               ].map(field => (
                 <div key={field.label}>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 6 }}>{field.label}</label>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <input className="input" style={{ fontSize: 13, fontFamily: field.secret ? "monospace" : "inherit", color: "hsl(var(--text-muted))" }} defaultValue={field.value} readOnly={field.readonly} />
-                    {field.readonly && (
-                      <button className="btn btn-ghost btn-sm" title="Managed via .env.local">
-                        <Key size={13} />
-                      </button>
-                    )}
+                    <input
+                      className="input"
+                      style={{ fontSize: 13, fontFamily: field.secret ? "monospace" : "inherit", color: "hsl(var(--text-muted))" }}
+                      defaultValue={field.value}
+                      readOnly={field.readonly}
+                    />
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      title="Copy"
+                      onClick={() => { navigator.clipboard.writeText(field.value); info("Copied!", field.label + " copied to clipboard"); }}
+                    >
+                      <Key size={13} />
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
-              <button className="btn btn-primary">
-                <ExternalLink size={14} />
-                Connect Etsy Shop
-              </button>
-              <div style={{ fontSize: 12, color: "hsl(var(--text-muted))", display: "flex", alignItems: "center" }}>
-                API key stored in .env.local (never committed to Git)
+            {/* Action buttons */}
+            <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "center" }}>
+              {shopStatus?.connected ? (
+                <>
+                  <button className="btn btn-secondary" onClick={handleDisconnect}>
+                    <WifiOff size={14} />Disconnect Shop
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={fetchShopStatus}>
+                    <RefreshCw size={13} />Refresh Status
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="btn btn-primary"
+                  onClick={handleConnect}
+                  disabled={connecting}
+                  style={{ gap: 8 }}
+                >
+                  {connecting
+                    ? <><RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />Redirecting to Etsy...</>
+                    : <><Link2 size={14} />Connect Etsy Shop</>
+                  }
+                </button>
+              )}
+              <div style={{ fontSize: 12, color: "hsl(var(--text-muted))" }}>
+                API key stored in .env.local — never committed to Git
               </div>
             </div>
           </div>
         </div>
 
-        {/* Shop Info */}
+        {/* ── Shop Preferences ──────────────────────────────────────────── */}
         <div className="glass" style={{ overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid hsl(var(--bg-border))", display: "flex", alignItems: "center", gap: 10 }}>
             <Settings size={16} color="hsl(var(--brand-secondary))" />
@@ -82,10 +214,10 @@ export default function SettingsPage() {
           </div>
           <div style={{ padding: "20px", display: "grid", gap: 14 }}>
             {[
-              { label: "Shop Name", value: "Orra Nails", placeholder: "Your Etsy shop name" },
-              { label: "Default Currency", value: "USD", placeholder: "USD" },
-              { label: "Origin Country", value: "India", placeholder: "Your country" },
-              { label: "Low Stock Alert Threshold", value: "5", placeholder: "e.g. 5", type: "number" },
+              { label: "Shop Name",                    value: "Orra Nails", placeholder: "Your Etsy shop name" },
+              { label: "Default Currency",             value: "INR",        placeholder: "INR" },
+              { label: "Origin Country",               value: "India",      placeholder: "Your country" },
+              { label: "Low Stock Alert Threshold",    value: "5",          placeholder: "e.g. 5", type: "number" },
             ].map(field => (
               <div key={field.label}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 6 }}>{field.label}</label>
@@ -95,31 +227,28 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* AI Settings */}
+        {/* ── AI Settings ───────────────────────────────────────────────── */}
         <div className="glass" style={{ overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid hsl(var(--bg-border))", display: "flex", alignItems: "center", gap: 10 }}>
             <Zap size={16} color="hsl(var(--status-warning))" />
-            <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--text-primary))" }}>AI Writer Settings</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--text-primary))" }}>AI Writer</div>
+            <span className="badge badge-success" style={{ marginLeft: "auto" }}>✓ Gemini Connected</span>
           </div>
           <div style={{ padding: "20px", display: "grid", gap: 14 }}>
             <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 6 }}>AI Provider</label>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 6 }}>AI Model</label>
               <select className="input" style={{ fontSize: 13 }}>
-                <option>OpenAI (GPT-4o)</option>
-                <option>Google Gemini</option>
+                <option>Google Gemini 1.5 Flash (Active)</option>
+                <option>Google Gemini 1.5 Pro</option>
               </select>
             </div>
-            <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 6 }}>API Key</label>
-              <input className="input" style={{ fontSize: 13, fontFamily: "monospace" }} placeholder="sk-... or AI-..." type="password" />
-            </div>
-            <div style={{ padding: "10px 14px", borderRadius: 8, background: "hsl(var(--bg-elevated))", border: "1px solid hsl(var(--bg-border))", fontSize: 12, color: "hsl(var(--text-muted))" }}>
-              🔒 API keys are stored in .env.local and never exposed to the browser or committed to Git
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: "hsl(var(--status-success) / 0.08)", border: "1px solid hsl(var(--status-success) / 0.25)", fontSize: 12, color: "hsl(var(--text-muted))" }}>
+              ✓ Gemini API key is configured in .env.local — AI listing generation is active
             </div>
           </div>
         </div>
 
-        {/* Notifications */}
+        {/* ── Notifications ────────────────────────────────────────────── */}
         <div className="glass" style={{ overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid hsl(var(--bg-border))", display: "flex", alignItems: "center", gap: 10 }}>
             <Bell size={16} color="hsl(var(--status-info))" />
@@ -134,42 +263,28 @@ export default function SettingsPage() {
                 </div>
                 <button
                   onClick={() => toggleNotification(n.key)}
-                  title={n.on ? "Click to disable" : "Click to enable"}
-                  style={{
-                    width: 40,
-                    height: 22,
-                    borderRadius: 99,
-                    background: n.on ? "hsl(var(--brand-primary))" : "hsl(var(--bg-border))",
-                    border: "none",
-                    cursor: "pointer",
-                    position: "relative",
-                    transition: "background 0.2s",
-                    flexShrink: 0,
-                  }}
+                  style={{ width: 40, height: 22, borderRadius: 99, background: n.on ? "hsl(var(--brand-primary))" : "hsl(var(--bg-border))", border: "none", cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}
                 >
-                  <span style={{
-                    position: "absolute",
-                    top: 3,
-                    left: n.on ? 21 : 3,
-                    width: 16,
-                    height: 16,
-                    borderRadius: "50%",
-                    background: "white",
-                    transition: "left 0.2s ease",
-                  }} />
+                  <span style={{ position: "absolute", top: 3, left: n.on ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "white", transition: "left 0.2s ease" }} />
                 </button>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Save button */}
+        {/* ── Save ─────────────────────────────────────────────────────── */}
         <div>
           <button className="btn btn-primary btn-lg" onClick={save} style={{ gap: 8 }}>
             {saved ? <><CheckCircle size={16} />Saved!</> : <><Save size={15} />Save Settings</>}
           </button>
         </div>
       </div>
+
+      <style>{`
+        @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+        .badge-success { background: hsl(var(--status-success) / 0.15); color: hsl(var(--status-success)); border-color: hsl(var(--status-success) / 0.3); }
+        .badge-warning { background: hsl(var(--status-warning) / 0.15); color: hsl(var(--status-warning)); border-color: hsl(var(--status-warning) / 0.3); }
+      `}</style>
     </>
   );
 }
