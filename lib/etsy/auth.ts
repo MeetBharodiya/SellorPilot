@@ -68,6 +68,7 @@ export async function exchangeCodeForTokens(
     body: new URLSearchParams({
       grant_type:    "authorization_code",
       client_id:     process.env.ETSY_API_KEY!,
+      client_secret: process.env.ETSY_SHARED_SECRET!, // Required for confidential client token
       redirect_uri:  REDIRECT_URI,
       code,
       code_verifier: codeVerifier,
@@ -92,6 +93,7 @@ export async function refreshAccessToken(
     body: new URLSearchParams({
       grant_type:    "refresh_token",
       client_id:     process.env.ETSY_API_KEY!,
+      client_secret: process.env.ETSY_SHARED_SECRET!, // Required for confidential client
       refresh_token: refreshToken,
     }),
   });

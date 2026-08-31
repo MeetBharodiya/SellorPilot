@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import TopBar from "@/components/layout/TopBar";
 import { useShop } from "@/context/ShopContext";
@@ -132,14 +132,13 @@ export default function DashboardPage() {
       setLoading(false);
     }
   };
-
-  const currencySymbol = stats?.currency === "INR" ? "â‚¹" : "$";
+  const currencySymbol = stats?.currency === "INR" ? "₹" : "$";
 
   return (
     <>
       <TopBar
         title="Dashboard"
-        subtitle={shop.connected ? `${shop.shopName ?? "Orra Nails"} â€” live overview` : "Welcome â€” connect your shop to begin"}
+        subtitle={shop.connected ? `${shop.shopName ?? "Orra Nails"} — live overview` : "Welcome — connect your shop to begin"}
         actions={
           <div style={{ display: "flex", gap: 8 }}>
             {shop.connected && (
@@ -197,8 +196,8 @@ export default function DashboardPage() {
             <CheckCircle size={15} color="hsl(var(--status-success))" />
             <div style={{ fontSize: 13, color: "hsl(var(--text-secondary))" }}>
               <strong style={{ color: "hsl(var(--status-success))" }}>Etsy shop connected</strong>
-              {shop.shopName && ` â€” ${shop.shopName}`}
-              {" Â· "}All data is live from your Etsy account
+              {shop.shopName && ` — ${shop.shopName}`}
+              {" · "}All data is live from your Etsy account
             </div>
           </div>
         )}

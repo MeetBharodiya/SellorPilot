@@ -7,13 +7,11 @@ const API_BASE = "https://openapi.etsy.com/v3";
 /** Decode Etsy JWT access token to extract user_id without an API call */
 function decodeEtsyToken(accessToken: string): string | null {
   try {
-    const parts   = accessToken.split(".");
+    const parts = accessToken.split(".");
     if (parts.length < 2) return null;
-    // Base64url decode the payload
     const payload = JSON.parse(
       Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
     );
-    // Etsy puts user_id in `usr` or `sub`
     const uid = payload.usr ?? payload.user_id ?? payload.sub;
     return uid ? String(uid) : null;
   } catch {
@@ -55,22 +53,15 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // ── 1. Exchange code for tokens ────────────────────────────────────────
+    // ── 1. Exchange code for tokens (now includes client_secret) ────────────
     const tokens = await exchangeCodeForTokens(code, codeVerifier);
+    console.log("[OAuth] Token obtained. Expires in:", tokens.expires_in, "s. Token prefix:", tokens.access_token.slice(0, 20));
 
-    // ── 2. Get user_id — decode JWT first (no API call needed) ────────────
-    let userId = decodeEtsyToken(tokens.access_token);
+    // ── 2. Get user_id from JWT ────────────────────────────────────────────
+    const userId = decodeEtsyToken(tokens.access_token);
+    console.log("[OAuth] Decoded user_id from JWT:", userId);
 
-    // ── 3. If JWT decode failed, fall back to /users/me ───────────────────
-    if (!userId) {
-      const meRes = await etsyGet("/application/users/me", tokens.access_token);
-      if (meRes.ok) {
-        const me = await meRes.json();
-        userId   = String(me.user_id ?? me.login_name ?? "");
-      }
-    }
-
-    // ── 4. Get the user's Etsy shop ───────────────────────────────────────
+    // ── 3. Try to get the real Etsy shop ───────────────────────────────────
     let etsyShop: any = null;
 
     if (userId) {
@@ -78,23 +69,47 @@ export async function GET(req: NextRequest) {
         `/application/users/${userId}/shops`,
         tokens.access_token
       );
+      console.log("[OAuth] /users/{id}/shops status:", shopsRes.status);
+
       if (shopsRes.ok) {
         const shopsData = await shopsRes.json();
-        etsyShop        = shopsData.results?.[0] ?? shopsData;
+        etsyShop = shopsData.results?.[0] ?? shopsData;
+        console.log("[OAuth] Got real shop:", etsyShop.shop_id, etsyShop.shop_name);
+      } else {
+        const errBody = await shopsRes.text();
+        console.warn("[OAuth] /users/{id}/shops failed:", shopsRes.status, errBody);
       }
     }
 
-    // ── 5. Fallback — save with minimal info so tokens are never lost ─────
-    // Even if shop fetch fails, we persist the tokens. Shop name/ID will
-    // update on next successful API call.
+    // ── 4. Fallback: try /users/me ─────────────────────────────────────────
+    if (!etsyShop) {
+      const meRes = await etsyGet("/application/users/me", tokens.access_token);
+      console.log("[OAuth] /users/me status:", meRes.status);
+      if (meRes.ok) {
+        const me = await meRes.json();
+        const realUserId = String(me.user_id ?? userId ?? "");
+        if (realUserId) {
+          const shopsRes2 = await etsyGet(
+            `/application/users/${realUserId}/shops`,
+            tokens.access_token
+          );
+          if (shopsRes2.ok) {
+            const shopsData2 = await shopsRes2.json();
+            etsyShop = shopsData2.results?.[0] ?? shopsData2;
+          }
+        }
+      }
+    }
+
+    // ── 5. Last fallback — save tokens regardless, update shop_id later ────
     if (!etsyShop || !etsyShop.shop_id) {
+      console.warn("[OAuth] Could not fetch shop info. Saving with placeholder.");
       etsyShop = {
-        shop_id:       userId ?? "personal",
+        shop_id:       userId ?? "orra_nails",
         shop_name:     "Orra Nails",
-        url:           "https://www.etsy.com/shop/OrraNails",
+        url:           "https://www.etsy.com",
         currency_code: "INR",
       };
-      console.warn("[OAuth] Could not fetch shop info — saved with defaults. shop_id:", userId);
     }
 
     // ── 6. Save to DB ──────────────────────────────────────────────────────
@@ -104,6 +119,7 @@ export async function GET(req: NextRequest) {
       tokens.refresh_token,
       tokens.expires_in
     );
+    console.log("[OAuth] Shop saved to DB. shop_id:", etsyShop.shop_id);
 
     // ── 7. Clear cookies & redirect ────────────────────────────────────────
     const res = NextResponse.redirect(
