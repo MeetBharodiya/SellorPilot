@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 import { getOrderStatusColor } from "@/lib/utils";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
-import { useShop } from "@/components/providers/ShopProvider";
+import { useShop } from "@/context/ShopContext";
 
 type OrderStatus = "all" | "paid" | "shipped" | "delivered" | "cancelled";
 
