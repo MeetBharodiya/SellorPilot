@@ -4,15 +4,12 @@ import { saveShopToDB } from "@/lib/etsy/shop";
 
 const API_BASE = "https://openapi.etsy.com/v3";
 
-/** Decode Etsy JWT access token to extract user_id without an API call */
+/** Decode Etsy access token (format: user_id.random_string) to extract user_id */
 function decodeEtsyToken(accessToken: string): string | null {
   try {
     const parts = accessToken.split(".");
     if (parts.length < 2) return null;
-    const payload = JSON.parse(
-      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
-    );
-    const uid = payload.usr ?? payload.user_id ?? payload.sub;
+    const uid = parts[0];
     return uid ? String(uid) : null;
   } catch {
     return null;
