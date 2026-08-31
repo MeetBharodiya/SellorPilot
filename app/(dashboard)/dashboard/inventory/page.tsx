@@ -1,33 +1,108 @@
 "use client";
 
 import TopBar from "@/components/layout/TopBar";
-import { Boxes, AlertTriangle, Search, Edit3, TrendingDown } from "lucide-react";
-import { useState } from "react";
+import { Boxes, AlertTriangle, Search, Edit3, TrendingDown, RefreshCw, WifiOff, Wifi } from "lucide-react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useToast } from "@/components/ui/Toast";
+import { useShop } from "@/components/providers/ShopProvider";
 
-const mockInventory = [
-  { id: "1", listing: "Butterfly Pink Press-On Nails", section: "Press-On Sets", variations: [{ name: "Short", qty: 5, price: 10.99 }, { name: "Medium", qty: 15, price: 12.99 }, { name: "Long", qty: 3, price: 14.99 }], threshold: 5 },
-  { id: "2", listing: "French Tips Bridal Set", section: "Custom Sets", variations: [{ name: "Natural", qty: 8, price: 18.50 }, { name: "Glitter Tips", qty: 2, price: 20.50 }], threshold: 3 },
-  { id: "3", listing: "Holographic Glitter Nails", section: "Press-On Sets", variations: [{ name: "Standard", qty: 0, price: 14.99 }], threshold: 5 },
-  { id: "4", listing: "Minimalist Nude Coffin Nails", section: "Press-On Sets", variations: [{ name: "Short", qty: 20, price: 11.00 }, { name: "Medium", qty: 18, price: 11.00 }, { name: "Long", qty: 12, price: 11.00 }], threshold: 5 },
-  { id: "5", listing: "Cherry Blossom Spring Nails", section: "Press-On Sets", variations: [{ name: "Pastel Pink", qty: 7, price: 15.99 }, { name: "White", qty: 5, price: 15.99 }], threshold: 4 },
-];
+interface InventoryItem {
+  id: string;
+  listing: string;
+  section: string;
+  variations: { name: string; qty: number; price: number }[];
+  threshold: number;
+}
+
+function NoShopBanner() {
+  return (
+    <div style={{ padding: "60px 24px", textAlign: "center" }}>
+      <WifiOff size={48} strokeWidth={1} color="hsl(var(--text-muted))" style={{ margin: "0 auto 16px", display: "block" }} />
+      <div style={{ fontSize: 18, fontWeight: 700, color: "hsl(var(--text-primary))", marginBottom: 8 }}>No Etsy shop connected</div>
+      <div style={{ fontSize: 14, color: "hsl(var(--text-muted))", marginBottom: 24 }}>Connect your Etsy shop in Settings to see your inventory</div>
+      <Link href="/dashboard/settings">
+        <button className="btn btn-primary"><Wifi size={14} />Connect Etsy Shop</button>
+      </Link>
+    </div>
+  );
+}
 
 export default function InventoryPage() {
+  const { shop, loading: shopLoading } = useShop();
+  const { toastError, success } = useToast();
+
   const [search, setSearch] = useState("");
   const [editingCell, setEditingCell] = useState<string | null>(null);
+  
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
-  const filtered = mockInventory.filter(i => i.listing.toLowerCase().includes(search.toLowerCase()));
-  const lowStockCount = mockInventory.reduce((acc, item) =>
+  const fetchInventory = async () => {
+    try {
+      const res = await fetch("/api/etsy/listings?state=active");
+      if (!res.ok) throw new Error("Failed to fetch listings");
+      const data = await res.json();
+      
+      const mapped: InventoryItem[] = (data.results || []).map((l: any) => ({
+        id: String(l.listing_id),
+        listing: l.title,
+        section: "Active Listings",
+        variations: [{
+          name: "Standard",
+          qty: l.quantity,
+          price: l.price ? l.price.amount / l.price.divisor : 0
+        }],
+        threshold: 3
+      }));
+      setInventory(mapped);
+    } catch (err: any) {
+      toastError("Sync Failed", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!shopLoading && shop.connected) {
+      fetchInventory();
+    } else if (!shopLoading && !shop.connected) {
+      setLoading(false);
+    }
+  }, [shop.connected, shopLoading]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    await fetchInventory();
+    setSyncing(false);
+    success("Inventory synced!", "Showing latest stock counts from Etsy.");
+  };
+
+  if (shopLoading || loading) return <TopBar title="Inventory" subtitle="Loading inventory..." />;
+  if (!shop.connected) return <><TopBar title="Inventory" subtitle="No shop connected" /><NoShopBanner /></>;
+
+  const filtered = inventory.filter(i => i.listing.toLowerCase().includes(search.toLowerCase()));
+  
+  const lowStockCount = inventory.reduce((acc, item) =>
     acc + item.variations.filter(v => v.qty > 0 && v.qty <= item.threshold).length, 0);
-  const outOfStockCount = mockInventory.reduce((acc, item) =>
+    
+  const outOfStockCount = inventory.reduce((acc, item) =>
     acc + item.variations.filter(v => v.qty === 0).length, 0);
-  const totalVariations = mockInventory.reduce((acc, item) => acc + item.variations.length, 0);
+    
+  const totalVariations = inventory.reduce((acc, item) => acc + item.variations.length, 0);
 
   return (
     <>
       <TopBar
         title="Inventory"
-        subtitle={`${lowStockCount} low stock · ${outOfStockCount} out of stock · ${totalVariations} total variations`}
+        subtitle={`${lowStockCount} low stock · ${outOfStockCount} out of stock · ${totalVariations} total listings`}
+        actions={
+          <button className="btn btn-secondary btn-sm" onClick={handleSync} disabled={syncing}>
+            <RefreshCw size={13} style={{ animation: syncing ? "spin 1s linear infinite" : "none" }} />
+            Sync from Etsy
+          </button>
+        }
       />
       <div style={{ padding: "20px 24px", flex: 1 }}>
         {/* Alerts */}
@@ -37,7 +112,7 @@ export default function InventoryPage() {
               <div style={{ flex: 1, padding: "12px 16px", borderRadius: 10, background: "hsl(var(--status-error) / 0.1)", border: "1px solid hsl(var(--status-error) / 0.3)", display: "flex", alignItems: "center", gap: 10 }}>
                 <TrendingDown size={16} color="hsl(var(--status-error))" />
                 <div style={{ fontSize: 13, color: "hsl(var(--text-primary))" }}>
-                  <strong>{outOfStockCount} variation{outOfStockCount > 1 ? "s" : ""}</strong> are completely out of stock
+                  <strong>{outOfStockCount} listing{outOfStockCount > 1 ? "s" : ""}</strong> are completely out of stock
                 </div>
               </div>
             )}
@@ -45,7 +120,7 @@ export default function InventoryPage() {
               <div style={{ flex: 1, padding: "12px 16px", borderRadius: 10, background: "hsl(var(--status-warning) / 0.1)", border: "1px solid hsl(var(--status-warning) / 0.3)", display: "flex", alignItems: "center", gap: 10 }}>
                 <AlertTriangle size={16} color="hsl(var(--status-warning))" />
                 <div style={{ fontSize: 13, color: "hsl(var(--text-primary))" }}>
-                  <strong>{lowStockCount} variation{lowStockCount > 1 ? "s" : ""}</strong> are running low on stock
+                  <strong>{lowStockCount} listing{lowStockCount > 1 ? "s" : ""}</strong> are running low on stock
                 </div>
               </div>
             )}
@@ -135,6 +210,13 @@ export default function InventoryPage() {
               )}
             </tbody>
           </table>
+          
+          {filtered.length === 0 && (
+            <div style={{ textAlign: "center", padding: 48, color: "hsl(var(--text-muted))" }}>
+              <Boxes size={36} strokeWidth={1} style={{ margin: "0 auto 10px", display: "block" }} />
+              <div>No inventory found</div>
+            </div>
+          )}
         </div>
       </div>
     </>

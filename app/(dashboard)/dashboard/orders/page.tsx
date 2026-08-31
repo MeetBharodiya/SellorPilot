@@ -2,41 +2,39 @@
 
 import TopBar from "@/components/layout/TopBar";
 import {
-  ShoppingBag,
-  Search,
-  Filter,
-  Truck,
-  Eye,
-  Package,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  ChevronRight,
-  ExternalLink,
-  MapPin,
-  User,
-  DollarSign,
+  ShoppingBag, Search, Truck, CheckCircle2,
+  XCircle, Clock, ExternalLink, MapPin, User,
+  DollarSign, RefreshCw, WifiOff, Wifi
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getOrderStatusColor } from "@/lib/utils";
-
-const mockOrders = [
-  { id: "ORD-001", etsyId: "2841930012", buyer: "Sarah Johnson", email: "sarah@example.com", items: [{ title: "Butterfly Pink Press-On Nails", qty: 1, price: 12.99 }], total: 15.49, shipping: 2.50, status: "paid", address: "123 Oak St, New York, NY 10001", createdAt: "2026-08-04 09:22", tracking: null },
-  { id: "ORD-002", etsyId: "2841820045", buyer: "Emma Williams", email: "emma@example.com", items: [{ title: "French Tips Bridal Set", qty: 1, price: 18.50 }, { title: "Nail Glue Extras", qty: 2, price: 3.00 }], total: 26.50, shipping: 3.00, status: "shipped", address: "45 Maple Ave, Los Angeles, CA 90001", createdAt: "2026-08-03 14:05", tracking: "9400111899225091234567" },
-  { id: "ORD-003", etsyId: "2841710098", buyer: "Jessica Brown", email: "jess@example.com", items: [{ title: "Cherry Blossom Spring Nails", qty: 1, price: 15.99 }], total: 18.99, shipping: 3.00, status: "delivered", address: "78 Pine Rd, Chicago, IL 60601", createdAt: "2026-08-01 11:30", tracking: "9400111899225099876543" },
-  { id: "ORD-004", etsyId: "2841600123", buyer: "Mia Davis", email: "mia@example.com", items: [{ title: "Holographic Glitter Nails", qty: 1, price: 14.99 }], total: 17.99, shipping: 3.00, status: "cancelled", address: "22 Birch Blvd, Houston, TX 77001", createdAt: "2026-07-30 16:45", tracking: null },
-  { id: "ORD-005", etsyId: "2841500078", buyer: "Olivia Martinez", email: "olivia@example.com", items: [{ title: "Gothic Black Stiletto Nails", qty: 2, price: 13.99 }], total: 31.48, shipping: 3.50, status: "paid", address: "9 Cedar Ln, Phoenix, AZ 85001", createdAt: "2026-08-04 07:10", tracking: null },
-];
+import Link from "next/link";
+import { useToast } from "@/components/ui/Toast";
+import { useShop } from "@/components/providers/ShopProvider";
 
 type OrderStatus = "all" | "paid" | "shipped" | "delivered" | "cancelled";
 
 const statusLabels: Record<string, string> = { paid: "Awaiting Shipment", shipped: "Shipped", delivered: "Delivered", cancelled: "Cancelled" };
 const statusIcons: Record<string, React.ElementType> = { paid: Clock, shipped: Truck, delivered: CheckCircle2, cancelled: XCircle };
 
-function OrderRow({ order, onClick, selected }: { order: typeof mockOrders[0]; onClick: () => void; selected: boolean }) {
-  const StatusIcon = statusIcons[order.status];
+interface MappedOrder {
+  id: string;
+  etsyId: string;
+  buyer: string;
+  email: string;
+  items: { title: string; qty: number; price: number }[];
+  total: number;
+  shipping: number;
+  status: OrderStatus;
+  address: string;
+  createdAt: string;
+  tracking: string | null;
+}
+
+function OrderRow({ order, onClick, selected }: { order: MappedOrder; onClick: () => void; selected: boolean }) {
+  const StatusIcon = statusIcons[order.status] || Clock;
   return (
-    <tr onClick={onClick} style={{ cursor: "pointer" }}>
+    <tr onClick={onClick} style={{ cursor: "pointer", background: selected ? "hsl(var(--bg-elevated))" : "transparent" }}>
       <td>
         <div style={{ fontSize: 12, fontWeight: 600, color: "hsl(var(--text-primary))" }}>#{order.etsyId}</div>
         <div style={{ fontSize: 11, color: "hsl(var(--text-muted))" }}>{order.createdAt}</div>
@@ -60,7 +58,7 @@ function OrderRow({ order, onClick, selected }: { order: typeof mockOrders[0]; o
       <td>
         <span className={`badge ${getOrderStatusColor(order.status)}`}>
           <StatusIcon size={10} style={{ marginRight: 4 }} />
-          {statusLabels[order.status]}
+          {statusLabels[order.status] || order.status}
         </span>
       </td>
       <td>
@@ -70,7 +68,7 @@ function OrderRow({ order, onClick, selected }: { order: typeof mockOrders[0]; o
       </td>
       <td>
         {order.status === "paid" && (
-          <button className="btn btn-primary btn-sm" onClick={(e) => e.stopPropagation()}>
+          <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); onClick(); }}>
             <Truck size={12} />
             Mark Shipped
           </button>
@@ -86,32 +84,116 @@ function OrderRow({ order, onClick, selected }: { order: typeof mockOrders[0]; o
   );
 }
 
+function NoShopBanner() {
+  return (
+    <div style={{ padding: "60px 24px", textAlign: "center" }}>
+      <WifiOff size={48} strokeWidth={1} color="hsl(var(--text-muted))" style={{ margin: "0 auto 16px", display: "block" }} />
+      <div style={{ fontSize: 18, fontWeight: 700, color: "hsl(var(--text-primary))", marginBottom: 8 }}>No Etsy shop connected</div>
+      <div style={{ fontSize: 14, color: "hsl(var(--text-muted))", marginBottom: 24 }}>Connect your Etsy shop in Settings to see your orders</div>
+      <Link href="/dashboard/settings">
+        <button className="btn btn-primary"><Wifi size={14} />Connect Etsy Shop</button>
+      </Link>
+    </div>
+  );
+}
+
 export default function OrdersPage() {
+  const { shop, loading: shopLoading } = useShop();
+  const { toastError, success } = useToast();
+  
   const [filter, setFilter] = useState<OrderStatus>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  
+  const [orders, setOrders] = useState<MappedOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
-  const filtered = mockOrders.filter(o => {
+  const fetchOrders = async () => {
+    try {
+      const res = await fetch("/api/etsy/orders");
+      if (!res.ok) throw new Error("Failed to fetch orders");
+      const data = await res.json();
+      
+      const mapped: MappedOrder[] = (data.results || []).map((o: any) => {
+        let status: OrderStatus = "paid";
+        if (o.status?.toLowerCase() === "canceled") status = "cancelled";
+        else if (o.is_shipped) status = "shipped";
+        
+        return {
+          id: String(o.receipt_id),
+          etsyId: String(o.receipt_id),
+          buyer: o.name || "Unknown Buyer",
+          email: o.buyer_email || "No email",
+          items: (o.transactions || []).map((t: any) => ({
+            title: t.title,
+            qty: t.quantity,
+            price: t.price.amount / t.price.divisor,
+          })),
+          total: o.grandtotal.amount / o.grandtotal.divisor,
+          shipping: o.total_shipping_cost.amount / o.total_shipping_cost.divisor,
+          status,
+          address: `${o.shipping_address?.first_line}, ${o.shipping_address?.city}, ${o.shipping_address?.state} ${o.shipping_address?.zip}`,
+          createdAt: new Date(o.create_timestamp * 1000).toLocaleString(),
+          tracking: o.shipments?.[0]?.tracking_code || null,
+        };
+      });
+      setOrders(mapped);
+    } catch (err: any) {
+      toastError("Sync Failed", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!shopLoading && shop.connected) {
+      fetchOrders();
+    } else if (!shopLoading && !shop.connected) {
+      setLoading(false);
+    }
+  }, [shop.connected, shopLoading]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    await fetchOrders();
+    setSyncing(false);
+    success("Orders synced!", "Showing latest orders from Etsy.");
+  };
+
+  if (shopLoading || loading) return <TopBar title="Orders" subtitle="Loading orders..." />;
+  if (!shop.connected) return <><TopBar title="Orders" subtitle="No shop connected" /><NoShopBanner /></>;
+
+  const filtered = orders.filter(o => {
     const matchStatus = filter === "all" || o.status === filter;
     const matchSearch = o.buyer.toLowerCase().includes(search.toLowerCase()) || o.etsyId.includes(search);
     return matchStatus && matchSearch;
   });
 
-  const selectedOrder = mockOrders.find(o => o.id === selected);
+  const selectedOrder = orders.find(o => o.id === selected);
 
   const counts = {
-    all: mockOrders.length,
-    paid: mockOrders.filter(o => o.status === "paid").length,
-    shipped: mockOrders.filter(o => o.status === "shipped").length,
-    delivered: mockOrders.filter(o => o.status === "delivered").length,
-    cancelled: mockOrders.filter(o => o.status === "cancelled").length,
+    all: orders.length,
+    paid: orders.filter(o => o.status === "paid").length,
+    shipped: orders.filter(o => o.status === "shipped").length,
+    delivered: orders.filter(o => o.status === "delivered").length,
+    cancelled: orders.filter(o => o.status === "cancelled").length,
   };
 
-  const revenue = mockOrders.filter(o => o.status !== "cancelled").reduce((s, o) => s + o.total, 0);
+  const revenue = orders.filter(o => o.status !== "cancelled").reduce((s, o) => s + o.total, 0);
 
   return (
     <>
-      <TopBar title="Orders" subtitle={`${counts.paid} awaiting shipment · $${revenue.toFixed(2)} total revenue`} />
+      <TopBar 
+        title="Orders" 
+        subtitle={`${counts.paid} awaiting shipment · $${revenue.toFixed(2)} total revenue`} 
+        actions={
+          <button className="btn btn-secondary btn-sm" onClick={handleSync} disabled={syncing}>
+            <RefreshCw size={13} style={{ animation: syncing ? "spin 1s linear infinite" : "none" }} />
+            Sync from Etsy
+          </button>
+        }
+      />
 
       <div style={{ padding: "20px 24px", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Summary row */}
@@ -175,7 +257,7 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--text-primary))" }}>#{selectedOrder.etsyId}</div>
                   <div style={{ fontSize: 11, color: "hsl(var(--text-muted))" }}>{selectedOrder.createdAt}</div>
                 </div>
-                <span className={`badge ${getOrderStatusColor(selectedOrder.status)}`}>{statusLabels[selectedOrder.status]}</span>
+                <span className={`badge ${getOrderStatusColor(selectedOrder.status)}`}>{statusLabels[selectedOrder.status] || selectedOrder.status}</span>
               </div>
 
               <div className="divider" />
@@ -188,7 +270,7 @@ export default function OrdersPage() {
 
               <div>
                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "hsl(var(--text-muted))", marginBottom: 8 }}>Ship To</div>
-                <div style={{ display: "flex", gap: 6, fontSize: 12, color: "hsl(var(--text-secondary))" }}>
+                <div style={{ display: "flex", gap: 6, fontSize: 12, color: "hsl(var(--text-secondary))", lineHeight: 1.4 }}>
                   <MapPin size={12} style={{ marginTop: 2, flexShrink: 0 }} />
                   {selectedOrder.address}
                 </div>
@@ -198,7 +280,7 @@ export default function OrdersPage() {
                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "hsl(var(--text-muted))", marginBottom: 8 }}>Items</div>
                 {selectedOrder.items.map((item, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "6px 0", borderBottom: "1px solid hsl(var(--bg-border))" }}>
-                    <span style={{ color: "hsl(var(--text-secondary))", flex: 1 }}>{item.title} ×{item.qty}</span>
+                    <span style={{ color: "hsl(var(--text-secondary))", flex: 1, paddingRight: 8 }}>{item.title} ×{item.qty}</span>
                     <span style={{ fontWeight: 600, color: "hsl(var(--text-primary))" }}>${(item.price * item.qty).toFixed(2)}</span>
                   </div>
                 ))}
