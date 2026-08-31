@@ -8,9 +8,9 @@ export const SHOP_DEFAULTS = {
   pricing: {
     currency: "INR" as const,
     regions: {
-      india:         3450,   // ₹3,450
-      us:            3936,   // ₹3,936 (converted by Etsy to USD at checkout)
-      everywhere:    3450,   // ₹3,450
+      india: 3450,   // ₹3,450
+      us: 3936,   // ₹3,936 (converted by Etsy to USD at checkout)
+      everywhere: 3450,   // ₹3,450
     },
   },
 
@@ -59,12 +59,12 @@ export const SHOP_DEFAULTS = {
   shapeVariant: {
     name: "Shape",
     options: [
-      { name: "Stiletto",          enabled: true },
-      { name: "Square",            enabled: true },
-      { name: "Soft Square",       enabled: true },
-      { name: "Oval",              enabled: true },
-      { name: "Coffin / Ballerina",enabled: true },
-      { name: "Almond",            enabled: true },
+      { name: "Stiletto", enabled: true },
+      { name: "Square", enabled: true },
+      { name: "Soft Square", enabled: true },
+      { name: "Oval", enabled: true },
+      { name: "Coffin / Ballerina", enabled: true },
+      { name: "Almond", enabled: true },
     ],
   },
 

@@ -2,21 +2,14 @@
 
 import TopBar from "@/components/layout/TopBar";
 import { useToast } from "@/components/ui/Toast";
+import { useShop } from "@/context/ShopContext";
 import {
-  Settings, Key, Zap, Bell, Shield, Save, ExternalLink,
-  CheckCircle, Clock, AlertTriangle, RefreshCw, Wifi, WifiOff, Link2,
+  Settings, Key, Zap, Bell, Save, ExternalLink,
+  CheckCircle, RefreshCw, Wifi, WifiOff, Link2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface ShopStatus {
-  connected:   boolean;
-  shopName?:   string;
-  shopUrl?:    string;
-  currency?:   string;
-  tokenExpiry?: string;
-}
 
 const DEFAULT_NOTIFICATIONS = [
   { key: "new_order",   label: "New order received",          desc: "Alert when a buyer places an order",               on: true  },
@@ -28,17 +21,12 @@ const DEFAULT_NOTIFICATIONS = [
 export default function SettingsPage() {
   const searchParams = useSearchParams();
   const { success, error: toastError, info } = useToast();
+  // ✅ Single source of truth — same context used by Sidebar
+  const { shop: shopStatus, loading: loadingStatus, refresh } = useShop();
 
   const [saved, setSaved]                     = useState(false);
   const [notifications, setNotifications]     = useState(DEFAULT_NOTIFICATIONS);
-  const [shopStatus, setShopStatus]           = useState<ShopStatus | null>(null);
-  const [loadingStatus, setLoadingStatus]     = useState(true);
   const [connecting, setConnecting]           = useState(false);
-
-  // ── Check connection status on mount ────────────────────────────────────────
-  useEffect(() => {
-    fetchShopStatus();
-  }, []);
 
   // ── Handle OAuth return (connected=true or error=...) ────────────────────────
   useEffect(() => {
@@ -47,8 +35,7 @@ export default function SettingsPage() {
 
     if (connected === "true") {
       success("Etsy shop connected! 🎉", "Your listings, orders, and inventory are now live.");
-      fetchShopStatus(); // refresh status
-      // Clean URL without full reload
+      refresh(); // updates BOTH sidebar and settings from one source
       window.history.replaceState({}, "", "/dashboard/settings");
     } else if (errParam) {
       const messages: Record<string, string> = {
@@ -62,19 +49,6 @@ export default function SettingsPage() {
     }
   }, [searchParams]);
 
-  const fetchShopStatus = async () => {
-    setLoadingStatus(true);
-    try {
-      const res  = await fetch("/api/etsy/shop");
-      const data = await res.json();
-      setShopStatus(data);
-    } catch {
-      setShopStatus({ connected: false });
-    } finally {
-      setLoadingStatus(false);
-    }
-  };
-
   const handleConnect = () => {
     setConnecting(true);
     // Navigate to the OAuth connect route — it will redirect to Etsy
@@ -84,7 +58,7 @@ export default function SettingsPage() {
   const handleDisconnect = async () => {
     if (!confirm("Disconnect your Etsy shop? You can reconnect anytime.")) return;
     info("Disconnected", "Shop disconnected locally. Reconnect anytime from Settings.");
-    setShopStatus({ connected: false });
+    refresh(); // re-fetch — will show not connected since token is gone
   };
 
   const toggleNotification = (key: string) => {
@@ -182,7 +156,7 @@ export default function SettingsPage() {
                   <button className="btn btn-secondary" onClick={handleDisconnect}>
                     <WifiOff size={14} />Disconnect Shop
                   </button>
-                  <button className="btn btn-ghost btn-sm" onClick={fetchShopStatus}>
+                  <button className="btn btn-ghost btn-sm" onClick={refresh}>
                     <RefreshCw size={13} />Refresh Status
                   </button>
                 </>

@@ -13,7 +13,9 @@ import {
   Settings,
   Zap,
   ExternalLink,
+  WifiOff,
 } from "lucide-react";
+import { useShop } from "@/context/ShopContext";
 
 const navItems = [
   {
@@ -60,6 +62,53 @@ const bottomItems = [
     icon: Settings,
   },
 ];
+
+// ─── Shop Badge — reads from shared ShopContext ───────────────────────────────
+function ShopBadge() {
+  const { shop, loading } = useShop();
+
+  const initials = shop.shopName
+    ? shop.shopName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+    : "ON";
+
+  return (
+    <div style={{ padding: "12px 12px 4px" }}>
+      <div style={{ background: "hsl(var(--bg-elevated))", border: "1px solid hsl(var(--bg-border))", borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+        {/* Avatar */}
+        {shop.iconUrl ? (
+          <img src={shop.iconUrl} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+        ) : (
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: "linear-gradient(135deg, hsl(350 80% 60%), hsl(20 80% 60%))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "white", flexShrink: 0 }}>
+            {initials}
+          </div>
+        )}
+
+        {/* Name + status */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "hsl(var(--text-primary))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {loading ? "Loading..." : (shop.shopName ?? "Orra Nails")}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+            {loading ? (
+              <span style={{ fontSize: 10, color: "hsl(var(--text-muted))" }}>Checking...</span>
+            ) : shop.connected ? (
+              <><span className="live-dot" /><span style={{ fontSize: 10, color: "hsl(var(--status-success))" }}>Connected</span></>
+            ) : (
+              <><WifiOff size={9} color="hsl(var(--status-warning))" /><span style={{ fontSize: 10, color: "hsl(var(--status-warning))" }}>Not connected</span></>
+            )}
+          </div>
+        </div>
+
+        {/* Link to shop on Etsy (only if connected) */}
+        {shop.connected && shop.shopUrl && (
+          <a href={shop.shopUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+            <ExternalLink size={12} color="hsl(var(--text-muted))" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -118,48 +167,8 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Shop Badge */}
-      <div style={{ padding: "12px 12px 4px" }}>
-        <div
-          style={{
-            background: "hsl(var(--bg-elevated))",
-            border: "1px solid hsl(var(--bg-border))",
-            borderRadius: 8,
-            padding: "8px 10px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              background: "linear-gradient(135deg, hsl(350 80% 60%), hsl(20 80% 60%))",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 12,
-              fontWeight: 700,
-              color: "white",
-              flexShrink: 0,
-            }}
-          >
-            ON
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "hsl(var(--text-primary))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              Orra Nails
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
-              <span className="live-dot" />
-              <span style={{ fontSize: 10, color: "hsl(var(--status-success))" }}>Connected</span>
-            </div>
-          </div>
-          <ExternalLink size={12} color="hsl(var(--text-muted))" />
-        </div>
-      </div>
+      {/* Shop Badge — live from ShopContext (same source as Settings page) */}
+      <ShopBadge />
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: "8px 12px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
