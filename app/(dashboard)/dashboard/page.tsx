@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import TopBar from "@/components/layout/TopBar";
 import { useShop } from "@/context/ShopContext";
@@ -53,7 +53,7 @@ function StatCard({ label, value, sub, icon: Icon, color, href, loading }: {
           </div>
         </div>
         <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 4, color: "hsl(var(--text-muted))", fontSize: 12 }}>
-          {loading ? <><Clock size={11} />Loading from Etsy...</> : <><CheckCircle size={11} color="hsl(var(--status-success))" />{sub ?? "Live from Etsy"}</>}
+          {loading ? <><Clock size={11} />Loading from Etsy...</> : <><CheckCircle size={11} color="hsl(var(--status-success))" />{sub ?? "—"}</>}
           <ArrowRight size={11} style={{ marginLeft: "auto" }} />
         </div>
       </div>
@@ -124,7 +124,7 @@ export default function DashboardPage() {
         pendingOrders,
         totalRevenue,
         lowStockItems,
-        currency: shop.currency ?? "INR",
+        currency: shop.currency ?? "—",
       });
     } catch (err) {
       console.error("[Dashboard] fetchStats error:", err);
@@ -138,7 +138,7 @@ export default function DashboardPage() {
     <>
       <TopBar
         title="Dashboard"
-        subtitle={shop.connected ? `${shop.shopName ?? "Orra Nails"} — live overview` : "Welcome — connect your shop to begin"}
+        subtitle={shop.connected ? `${shop.shopName ?? "—"} — live overview` : "Welcome — connect your shop to begin"}
         actions={
           <div style={{ display: "flex", gap: 8 }}>
             {shop.connected && (
@@ -162,10 +162,10 @@ export default function DashboardPage() {
         {/* Stats Grid */}
         {(shop.connected || loading) && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-            <StatCard label="Active Listings"  value={stats?.activeListings  ?? "â€”"} sub={`${stats?.draftListings ?? 0} drafts`} icon={Tag}          color="violet"  href="/dashboard/listings"  loading={loading} />
-            <StatCard label="Pending Orders"   value={stats?.pendingOrders   ?? "â€”"} sub="Awaiting shipment"                     icon={ShoppingBag}  color="blue"    href="/dashboard/orders"    loading={loading} />
+            <StatCard label="Active Listings"  value={stats?.activeListings  ?? "—"} sub={`${stats?.draftListings ?? 0} drafts`} icon={Tag}          color="violet"  href="/dashboard/listings"  loading={loading} />
+            <StatCard label="Pending Orders"   value={stats?.pendingOrders   ?? "—"} sub="Awaiting shipment"                     icon={ShoppingBag}  color="blue"    href="/dashboard/orders"    loading={loading} />
             <StatCard label="Revenue (Month)"  value={stats ? `${currencySymbol}${stats.totalRevenue.toLocaleString()}` : "â€”"} sub="Current month" icon={DollarSign}  color="emerald" href="/dashboard/analytics"  loading={loading} />
-            <StatCard label="Low Stock Items"  value={stats?.lowStockItems   ?? "â€”"} sub="â‰¤ 3 remaining"                         icon={AlertTriangle} color="amber"   href="/dashboard/inventory" loading={loading} />
+            <StatCard label="Low Stock Items"  value={stats?.lowStockItems   ?? "—"} sub="<= 3 remaining"                         icon={AlertTriangle} color="amber"   href="/dashboard/inventory" loading={loading} />
           </div>
         )}
 

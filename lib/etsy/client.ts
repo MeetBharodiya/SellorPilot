@@ -45,7 +45,7 @@ export async function etsyFetch<T = unknown>(
   const res = await fetch(url, {
     ...options,
     headers: {
-      "x-api-key":    process.env.ETSY_API_KEY!,
+      "x-api-key":    `${process.env.ETSY_API_KEY}:${process.env.ETSY_SHARED_SECRET}`,
       "Authorization": `Bearer ${shop.accessToken}`,
       "Content-Type":  "application/json",
       ...(options.headers ?? {}),

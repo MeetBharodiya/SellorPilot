@@ -19,7 +19,7 @@ function decodeEtsyToken(accessToken: string): string | null {
 async function etsyGet(path: string, accessToken: string) {
   return fetch(`${API_BASE}${path}`, {
     headers: {
-      "x-api-key":   process.env.ETSY_API_KEY!,
+      "x-api-key":   `${process.env.ETSY_API_KEY}:${process.env.ETSY_SHARED_SECRET}`,
       Authorization: `Bearer ${accessToken}`,
     },
   });
