@@ -57,8 +57,13 @@ export default function SettingsPage() {
 
   const handleDisconnect = async () => {
     if (!confirm("Disconnect your Etsy shop? You can reconnect anytime.")) return;
-    info("Disconnected", "Shop disconnected locally. Reconnect anytime from Settings.");
-    refresh(); // re-fetch — will show not connected since token is gone
+    try {
+      await fetch("/api/etsy/shop", { method: "DELETE" });
+      info("Disconnected", "Shop disconnected successfully. Reconnect anytime from Settings.");
+      refresh(); // re-fetch — will show not connected since token is gone
+    } catch (err) {
+      toastError("Error", "Failed to disconnect shop.");
+    }
   };
 
   const toggleNotification = (key: string) => {
