@@ -5,7 +5,7 @@ import { Boxes, AlertTriangle, Search, Edit3, TrendingDown, RefreshCw, WifiOff, 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
-import { useShop } from "@/components/providers/ShopProvider";
+import { useShop } from "@/context/ShopContext";
 
 interface InventoryItem {
   id: string;
@@ -30,7 +30,7 @@ function NoShopBanner() {
 
 export default function InventoryPage() {
   const { shop, loading: shopLoading } = useShop();
-  const { toastError, success } = useToast();
+  const { error: toastError, success } = useToast();
 
   const [search, setSearch] = useState("");
   const [editingCell, setEditingCell] = useState<string | null>(null);
