@@ -13,7 +13,6 @@ export const ETSY_SCOPES = [
   "transactions_w",
   "shops_r",
   "profile_r",
-  "email_r",
 ].join(" ");
 
 export const ETSY_AUTH_URL   = "https://www.etsy.com/oauth/connect";
