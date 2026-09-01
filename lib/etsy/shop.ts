@@ -40,16 +40,19 @@ export async function getMyShop(): Promise<EtsyShop | null> {
   return getShop(shop.etsyShopId);
 }
 
-// ─── Save shop info to DB after OAuth connect ─────────────────────────────────
+// ─── Save (or update) a shop in DB after OAuth connect ────────────────────────
+// Multi-shop: always associates the shop with the correct platform userId.
+// After saving, sets user.activeShopId so the new shop is immediately active.
 
 export async function saveShopToDB(
-  etsyShop: EtsyShop,
-  accessToken: string,
+  etsyShop:     EtsyShop,
+  accessToken:  string,
   refreshToken: string,
-  expiresIn: number
+  expiresIn:    number,
+  userId:       string   // platform user from sellor_user_id cookie
 ): Promise<void> {
-  // For personal tool: upsert — there's only ever one shop
-  await prisma.shop.upsert({
+  // Upsert the shop — if reconnecting an existing shop, update tokens
+  const shop = await prisma.shop.upsert({
     where:  { etsyShopId: String(etsyShop.shop_id) },
     update: {
       shopName:     etsyShop.shop_name,
@@ -59,7 +62,7 @@ export async function saveShopToDB(
       refreshToken,
       tokenExpiry:  new Date(Date.now() + expiresIn * 1000),
       currency:     etsyShop.currency_code,
-      isActive:     true,
+      userId,       // re-associate if ownership changed (e.g. new browser)
     },
     create: {
       etsyShopId:   String(etsyShop.shop_id),
@@ -70,17 +73,36 @@ export async function saveShopToDB(
       refreshToken,
       tokenExpiry:  new Date(Date.now() + expiresIn * 1000),
       currency:     etsyShop.currency_code,
-      isActive:     true,
-      // Personal tool: create a default user if none exists
-      user: {
-        connectOrCreate: {
-          where:  { email: "owner@orra-nails.local" },
-          create: {
-            email: "owner@orra-nails.local",
-            name:  etsyShop.shop_name,
-          },
-        },
-      },
+      userId,
     },
   });
+
+  // Make this newly connected shop the active one for this user
+  await prisma.user.update({
+    where: { id: userId },
+    data:  { activeShopId: shop.id },
+  });
+}
+
+// ─── Ensure a platform user exists (or create one) for the cookie ─────────────
+// Called on first connect. Returns the userId to store in the cookie.
+
+export async function ensurePlatformUser(hint?: {
+  name?: string;
+  email?: string;
+}): Promise<string> {
+  // Use a deterministic email if provided (future auth integration point)
+  if (hint?.email) {
+    const existing = await prisma.user.findUnique({ where: { email: hint.email } });
+    if (existing) return existing.id;
+  }
+
+  // Create a new anonymous platform user
+  const user = await prisma.user.create({
+    data: {
+      name:  hint?.name ?? "SellorPilot User",
+      email: hint?.email,
+    },
+  });
+  return user.id;
 }

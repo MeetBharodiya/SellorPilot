@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForTokens } from "@/lib/etsy/auth";
-import { saveShopToDB } from "@/lib/etsy/shop";
+import { saveShopToDB, ensurePlatformUser } from "@/lib/etsy/shop";
 
 const API_BASE = "https://openapi.etsy.com/v3";
 
@@ -50,41 +50,50 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // ── 1. Exchange code for tokens (now includes client_secret) ────────────
+    // ── 1. Exchange code for tokens ────────────────────────────────────────
     const tokens = await exchangeCodeForTokens(code, codeVerifier);
-    console.log("[OAuth] Token obtained. Expires in:", tokens.expires_in, "s. Token prefix:", tokens.access_token.slice(0, 20));
+    console.log("[OAuth] Token obtained. Expires in:", tokens.expires_in, "s.");
 
-    // ── 2. Get user_id from JWT ────────────────────────────────────────────
-    const userId = decodeEtsyToken(tokens.access_token);
-    console.log("[OAuth] Decoded user_id from JWT:", userId);
+    // ── 2. Resolve platform user from cookie (multi-shop) ─────────────────
+    const existingUserId = req.cookies.get("sellor_user_id")?.value;
+    let platformUserId: string;
 
-    // ── 3. Try to get the real Etsy shop ───────────────────────────────────
-    let etsyShop: any = null;
+    if (existingUserId) {
+      // Returning user — reuse the existing platform user
+      platformUserId = existingUserId;
+    } else {
+      // First time — create a new platform user
+      platformUserId = await ensurePlatformUser();
+      console.log("[OAuth] Created new platform user:", platformUserId);
+    }
 
-    if (userId) {
+    // ── 3. Get user_id from token ──────────────────────────────────────────
+    const etsyUserId = decodeEtsyToken(tokens.access_token);
+    console.log("[OAuth] Decoded Etsy user_id:", etsyUserId);
+
+    // ── 4. Fetch the Etsy shop ─────────────────────────────────────────────
+    let etsyShop = null;
+
+    if (etsyUserId) {
       const shopsRes = await etsyGet(
-        `/application/users/${userId}/shops`,
+        `/application/users/${etsyUserId}/shops`,
         tokens.access_token
       );
-      console.log("[OAuth] /users/{id}/shops status:", shopsRes.status);
-
       if (shopsRes.ok) {
         const shopsData = await shopsRes.json();
         etsyShop = shopsData.results?.[0] ?? shopsData;
-        console.log("[OAuth] Got real shop:", etsyShop.shop_id, etsyShop.shop_name);
+        console.log("[OAuth] Got shop:", etsyShop.shop_id, etsyShop.shop_name);
       } else {
-        const errBody = await shopsRes.text();
-        console.warn("[OAuth] /users/{id}/shops failed:", shopsRes.status, errBody);
+        console.warn("[OAuth] /users/{id}/shops failed:", shopsRes.status);
       }
     }
 
-    // ── 4. Fallback: try /users/me ─────────────────────────────────────────
+    // ── 5. Fallback: try /users/me ─────────────────────────────────────────
     if (!etsyShop) {
       const meRes = await etsyGet("/application/users/me", tokens.access_token);
-      console.log("[OAuth] /users/me status:", meRes.status);
       if (meRes.ok) {
         const me = await meRes.json();
-        const realUserId = String(me.user_id ?? userId ?? "");
+        const realUserId = String(me.user_id ?? etsyUserId ?? "");
         if (realUserId) {
           const shopsRes2 = await etsyGet(
             `/application/users/${realUserId}/shops`,
@@ -98,38 +107,51 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── 5. Last fallback — save tokens regardless, update shop_id later ────
+    // ── 6. Last fallback ───────────────────────────────────────────────────
     if (!etsyShop || !etsyShop.shop_id) {
-      console.warn("[OAuth] Could not fetch shop info. Saving with placeholder.");
+      console.warn("[OAuth] Could not fetch shop info. Using placeholder.");
       etsyShop = {
-        shop_id:       userId ?? "orra_nails",
-        shop_name:     "Orra Nails",
+        shop_id:       etsyUserId ?? "unknown",
+        shop_name:     "My Etsy Shop",
         url:           "https://www.etsy.com",
-        currency_code: "INR",
+        currency_code: "USD",
       };
     }
 
-    // ── 6. Save to DB ──────────────────────────────────────────────────────
+    // ── 7. Save shop to DB with the platform userId ────────────────────────
     await saveShopToDB(
       etsyShop,
       tokens.access_token,
       tokens.refresh_token,
-      tokens.expires_in
+      tokens.expires_in,
+      platformUserId
     );
-    console.log("[OAuth] Shop saved to DB. shop_id:", etsyShop.shop_id);
+    console.log("[OAuth] Shop saved. shop_id:", etsyShop.shop_id, "user:", platformUserId);
 
-    // ── 7. Clear cookies & redirect ────────────────────────────────────────
+    // ── 8. Clear OAuth cookies, set user cookie, redirect ─────────────────
     const res = NextResponse.redirect(
       `${process.env.NEXTAUTH_URL}/dashboard/settings?connected=true`
     );
     res.cookies.delete("etsy_code_verifier");
     res.cookies.delete("etsy_oauth_state");
+
+    // Set sellor_user_id cookie (10-year lifetime, same-site strict)
+    if (!existingUserId) {
+      res.cookies.set("sellor_user_id", platformUserId, {
+        httpOnly: true,
+        sameSite: "lax",
+        path:     "/",
+        maxAge:   60 * 60 * 24 * 365 * 10, // 10 years
+      });
+    }
+
     return res;
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[Etsy OAuth Callback]", err);
+    const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.redirect(
-      `${process.env.NEXTAUTH_URL}/dashboard/settings?error=${encodeURIComponent(err.message)}`
+      `${process.env.NEXTAUTH_URL}/dashboard/settings?error=${encodeURIComponent(msg)}`
     );
   }
 }

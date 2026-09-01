@@ -2,10 +2,11 @@
 
 import TopBar from "@/components/layout/TopBar";
 import { useToast } from "@/components/ui/Toast";
-import { useShop } from "@/context/ShopContext";
+import { useShop, ShopInfo } from "@/context/ShopContext";
 import {
   Settings, Key, Zap, Bell, Save, ExternalLink,
   CheckCircle, RefreshCw, Wifi, WifiOff, Link2,
+  Plus, Trash2, Store, Check,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -22,7 +23,7 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const { success, error: toastError, info } = useToast();
   // ✅ Single source of truth — same context used by Sidebar
-  const { shop: shopStatus, loading: loadingStatus, refresh } = useShop();
+  const { shop: shopStatus, allShops, loading: loadingStatus, refresh, switchShop } = useShop();
 
   const [saved, setSaved]                     = useState(false);
   const [notifications, setNotifications]     = useState(DEFAULT_NOTIFICATIONS);
@@ -55,13 +56,18 @@ export default function SettingsPage() {
     window.location.href = "/api/auth/etsy/connect";
   };
 
-  const handleDisconnect = async () => {
-    if (!confirm("Disconnect your Etsy shop? You can reconnect anytime.")) return;
+  const handleDisconnect = async (shopId?: string) => {
+    const label = shopId ? "Remove this shop?" : "Disconnect your Etsy shop?";
+    if (!confirm(`${label} You can reconnect anytime.`)) return;
     try {
-      await fetch("/api/etsy/shop", { method: "DELETE" });
-      info("Disconnected", "Shop disconnected successfully. Reconnect anytime from Settings.");
-      refresh(); // re-fetch — will show not connected since token is gone
-    } catch (err) {
+      await fetch("/api/etsy/shop", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopId }),
+      });
+      info("Disconnected", "Shop removed. Reconnect anytime from Settings.");
+      refresh();
+    } catch {
       toastError("Error", "Failed to disconnect shop.");
     }
   };
@@ -81,53 +87,107 @@ export default function SettingsPage() {
       <TopBar title="Settings" subtitle="Configure your Etsy connection and app preferences" />
       <div style={{ padding: "24px", maxWidth: 720, display: "flex", flexDirection: "column", gap: 20 }}>
 
-        {/* ── Etsy Connection ───────────────────────────────────────────── */}
+        {/* ── Connected Shops ───────────────────────────────────────────── */}
         <div className="glass" style={{ overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid hsl(var(--bg-border))", display: "flex", alignItems: "center", gap: 10 }}>
-            <Zap size={16} color="hsl(var(--brand-primary))" />
-            <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--text-primary))" }}>Etsy Shop Connection</div>
-            {!loadingStatus && (
-              <span className={`badge ${shopStatus?.connected ? "badge-success" : "badge-warning"}`} style={{ marginLeft: "auto" }}>
-                {shopStatus?.connected ? "✓ Connected" : "Not Connected"}
-              </span>
-            )}
+            <Store size={16} color="hsl(var(--brand-primary))" />
+            <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--text-primary))" }}>Connected Shops</div>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "hsl(var(--text-muted))" }}>
+              {allShops.length} shop{allShops.length !== 1 ? "s" : ""} connected
+            </span>
           </div>
-          <div style={{ padding: "20px" }}>
+          <div style={{ padding: "16px 20px" }}>
 
-            {/* Status banner */}
-            {loadingStatus ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 8, background: "hsl(var(--bg-elevated))", marginBottom: 20 }}>
+            {/* Loading state */}
+            {loadingStatus && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 8, background: "hsl(var(--bg-elevated))" }}>
                 <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} color="hsl(var(--text-muted))" />
                 <span style={{ fontSize: 13, color: "hsl(var(--text-muted))" }}>Checking connection status...</span>
               </div>
-            ) : shopStatus?.connected ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 8, background: "hsl(var(--status-success) / 0.1)", border: "1px solid hsl(var(--status-success) / 0.3)", marginBottom: 20 }}>
-                <Wifi size={16} color="hsl(var(--status-success))" />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--status-success))" }}>
-                    Connected — {shopStatus.shopName}
-                  </div>
-                  <div style={{ fontSize: 12, color: "hsl(var(--text-muted))", marginTop: 2 }}>
-                    Currency: {shopStatus.currency} · Token expires: {shopStatus.tokenExpiry ? new Date(shopStatus.tokenExpiry).toLocaleDateString() : "auto-refresh"}
-                  </div>
-                </div>
-                {shopStatus.shopUrl && (
-                  <a href={shopStatus.shopUrl} target="_blank" style={{ marginLeft: "auto" }}>
-                    <button className="btn btn-ghost btn-sm"><ExternalLink size={12} />View Shop</button>
-                  </a>
-                )}
-              </div>
-            ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 8, background: "hsl(var(--status-warning) / 0.1)", border: "1px solid hsl(var(--status-warning) / 0.3)", marginBottom: 20 }}>
-                <WifiOff size={14} color="hsl(var(--status-warning))" />
-                <span style={{ fontSize: 13, color: "hsl(var(--text-secondary))" }}>
-                  Not connected — click "Connect Etsy Shop" to authorize with OAuth
-                </span>
+            )}
+
+            {/* No shops connected */}
+            {!loadingStatus && allShops.length === 0 && (
+              <div style={{ padding: "24px", textAlign: "center", borderRadius: 8, background: "hsl(var(--bg-elevated))", marginBottom: 16 }}>
+                <WifiOff size={32} strokeWidth={1} color="hsl(var(--text-muted))" style={{ margin: "0 auto 10px", display: "block" }} />
+                <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-primary))", marginBottom: 4 }}>No shops connected</div>
+                <div style={{ fontSize: 12, color: "hsl(var(--text-muted))" }}>Connect your first Etsy shop below to get started</div>
               </div>
             )}
 
-            {/* API fields */}
-            <div style={{ display: "grid", gap: 14 }}>
+            {/* Shop list */}
+            {!loadingStatus && allShops.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                {allShops.map((s: ShopInfo) => {
+                  const isActive = s.id === shopStatus?.id;
+                  return (
+                    <div
+                      key={s.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "12px 14px",
+                        borderRadius: 8,
+                        background: isActive ? "hsl(var(--status-success) / 0.08)" : "hsl(var(--bg-elevated))",
+                        border: `1px solid ${isActive ? "hsl(var(--status-success) / 0.3)" : "hsl(var(--bg-border))"}`,
+                      }}
+                    >
+                      {/* Shop avatar */}
+                      {s.iconUrl ? (
+                        <img src={s.iconUrl} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />
+                      ) : (
+                        <div style={{ width: 36, height: 36, borderRadius: 8, background: "linear-gradient(135deg, hsl(350 80% 60%), hsl(20 80% 60%))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "white", flexShrink: 0 }}>
+                          {s.shopName?.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+
+                      {/* Shop info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--text-primary))", display: "flex", alignItems: "center", gap: 6 }}>
+                          {s.shopName}
+                          {isActive && (
+                            <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 99, background: "hsl(var(--status-success) / 0.15)", color: "hsl(var(--status-success))" }}>
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, color: "hsl(var(--text-muted))", marginTop: 2 }}>
+                          {s.currency} · Token expires {s.tokenExpiry ? new Date(s.tokenExpiry).toLocaleDateString() : "auto-refresh"}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                        {s.shopUrl && (
+                          <a href={s.shopUrl} target="_blank" rel="noreferrer">
+                            <button className="btn btn-ghost btn-sm"><ExternalLink size={12} />View</button>
+                          </a>
+                        )}
+                        {!isActive && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => s.id && switchShop(s.id)}
+                          >
+                            <Check size={12} />Switch
+                          </button>
+                        )}
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: "hsl(var(--status-error))" }}
+                          onClick={() => handleDisconnect(s.id)}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* API credentials info */}
+            <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
               {[
                 { label: "API Keystring",    value: "ma2keca7flsy00zxcjyr2nto",                              readonly: true },
                 { label: "Shared Secret",    value: "••••••••••••••••",                                       readonly: true, secret: true },
@@ -154,32 +214,24 @@ export default function SettingsPage() {
               ))}
             </div>
 
-            {/* Action buttons */}
-            <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "center" }}>
-              {shopStatus?.connected ? (
-                <>
-                  <button className="btn btn-secondary" onClick={handleDisconnect}>
-                    <WifiOff size={14} />Disconnect Shop
-                  </button>
-                  <button className="btn btn-ghost btn-sm" onClick={refresh}>
-                    <RefreshCw size={13} />Refresh Status
-                  </button>
-                </>
-              ) : (
-                <button
-                  className="btn btn-primary"
-                  onClick={handleConnect}
-                  disabled={connecting}
-                  style={{ gap: 8 }}
-                >
-                  {connecting
-                    ? <><RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />Redirecting to Etsy...</>
-                    : <><Link2 size={14} />Connect Etsy Shop</>
-                  }
-                </button>
-              )}
+            {/* Add another shop button */}
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleConnect}
+                disabled={connecting}
+                style={{ gap: 8 }}
+              >
+                {connecting
+                  ? <><RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />Redirecting to Etsy...</>
+                  : <><Plus size={14} />{allShops.length === 0 ? "Connect Etsy Shop" : "Add Another Shop"}</>
+                }
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={refresh}>
+                <RefreshCw size={13} />Refresh
+              </button>
               <div style={{ fontSize: 12, color: "hsl(var(--text-muted))" }}>
-                API key stored in .env.local — never committed to Git
+                API key stored in .env.local
               </div>
             </div>
           </div>

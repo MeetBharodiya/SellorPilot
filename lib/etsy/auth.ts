@@ -1,8 +1,10 @@
 /**
  * Etsy OAuth 2.0 with PKCE — auth helpers and token management
- * Etsy uses PKCE instead of client_secret for security
+ * Multi-shop: uses sellor_user_id cookie to identify the platform user,
+ * then reads user.activeShopId to find the currently selected shop.
  */
 import crypto from "crypto";
+import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 
 export const ETSY_SCOPES = [
@@ -105,13 +107,47 @@ export async function refreshAccessToken(
   return res.json();
 }
 
-// ─── Get active shop tokens (with auto-refresh) ────────────────────────────────
+// ─── Get current platform user ID from cookie ──────────────────────────────────
+
+export async function getCurrentUserId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get("sellor_user_id")?.value ?? null;
+}
+
+// ─── Get active shop (with auto-refresh) ──────────────────────────────────────
+// Multi-shop: resolves the active shop via cookie userId → user.activeShopId
 
 export async function getActiveShop() {
-  const shop = await prisma.shop.findFirst({ where: { isActive: true } });
+  const userId = await getCurrentUserId();
+  if (!userId) return null;
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return null;
+
+  let shop = null;
+
+  // 1. Try the explicitly selected shop
+  if (user.activeShopId) {
+    shop = await prisma.shop.findFirst({
+      where: { id: user.activeShopId, userId },
+    });
+  }
+
+  // 2. Fall back to any shop for this user
+  if (!shop) {
+    shop = await prisma.shop.findFirst({ where: { userId } });
+    // Persist as the active shop
+    if (shop) {
+      await prisma.user.update({
+        where: { id: userId },
+        data:  { activeShopId: shop.id },
+      });
+    }
+  }
+
   if (!shop) return null;
 
-  // Check if token is expiring within 5 minutes
+  // Auto-refresh token if expiring within 5 minutes
   const expiresAt   = shop.tokenExpiry ? new Date(shop.tokenExpiry) : null;
   const now         = new Date();
   const fiveMinutes = 5 * 60 * 1000;
@@ -131,7 +167,6 @@ export async function getActiveShop() {
       return updated;
     } catch (err) {
       console.error("[Etsy Auth] Token refresh failed:", err);
-      // Return the shop anyway — let the API call fail and surface the error
     }
   }
 

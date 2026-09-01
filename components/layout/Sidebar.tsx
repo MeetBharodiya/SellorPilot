@@ -14,73 +14,82 @@ import {
   Zap,
   ExternalLink,
   WifiOff,
+  ChevronDown,
+  Check,
+  Plus,
 } from "lucide-react";
-import { useShop } from "@/context/ShopContext";
+import { useShop, ShopInfo } from "@/context/ShopContext";
+import { useState, useRef, useEffect } from "react";
 
 const navItems = [
-  {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Listings",
-    href: "/dashboard/listings",
-    icon: Tag,
-  },
-  {
-    label: "AI Writer",
-    href: "/dashboard/ai-writer",
-    icon: Sparkles,
-  },
-  {
-    label: "Orders",
-    href: "/dashboard/orders",
-    icon: ShoppingBag,
-  },
-  {
-    label: "Inventory",
-    href: "/dashboard/inventory",
-    icon: Boxes,
-  },
-  {
-    label: "Shipping",
-    href: "/dashboard/shipping",
-    icon: Truck,
-  },
-  {
-    label: "Analytics",
-    href: "/dashboard/analytics",
-    icon: BarChart3,
-  },
+  { label: "Dashboard", href: "/dashboard",           icon: LayoutDashboard },
+  { label: "Listings",  href: "/dashboard/listings",  icon: Tag },
+  { label: "AI Writer", href: "/dashboard/ai-writer", icon: Sparkles },
+  { label: "Orders",    href: "/dashboard/orders",    icon: ShoppingBag },
+  { label: "Inventory", href: "/dashboard/inventory", icon: Boxes },
+  { label: "Shipping",  href: "/dashboard/shipping",  icon: Truck },
+  { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
 ];
 
 const bottomItems = [
-  {
-    label: "Settings",
-    href: "/dashboard/settings",
-    icon: Settings,
-  },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
-// ─── Shop Badge — reads from shared ShopContext ───────────────────────────────
-function ShopBadge() {
-  const { shop, loading } = useShop();
-
+// ─── Shop Initials Avatar ─────────────────────────────────────────────────────
+function ShopAvatar({ shop, size = 28 }: { shop: ShopInfo; size?: number }) {
   const initials = shop.shopName
     ? shop.shopName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
     : "ON";
 
+  return shop.iconUrl ? (
+    <img src={shop.iconUrl} alt="" style={{ width: size, height: size, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+  ) : (
+    <div style={{ width: size, height: size, borderRadius: 6, background: "linear-gradient(135deg, hsl(350 80% 60%), hsl(20 80% 60%))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.38, fontWeight: 700, color: "white", flexShrink: 0 }}>
+      {initials}
+    </div>
+  );
+}
+
+// ─── Shop Switcher Badge ──────────────────────────────────────────────────────
+function ShopBadge() {
+  const { shop, allShops, loading, switchShop } = useShop();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const hasMultiple = allShops.length > 1;
+
   return (
-    <div style={{ padding: "12px 12px 4px" }}>
-      <div style={{ background: "hsl(var(--bg-elevated))", border: "1px solid hsl(var(--bg-border))", borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+    <div style={{ padding: "12px 12px 4px" }} ref={ref}>
+      <button
+        onClick={() => hasMultiple && setOpen(o => !o)}
+        style={{
+          width: "100%",
+          background: "hsl(var(--bg-elevated))",
+          border: `1px solid hsl(var(--bg-border))`,
+          borderRadius: 8,
+          padding: "8px 10px",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          cursor: hasMultiple ? "pointer" : "default",
+          transition: "border-color 0.15s",
+          textAlign: "left",
+        }}
+      >
         {/* Avatar */}
-        {shop.iconUrl ? (
-          <img src={shop.iconUrl} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+        {loading ? (
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: "hsl(var(--bg-border))" }} />
         ) : (
-          <div style={{ width: 28, height: 28, borderRadius: 6, background: "linear-gradient(135deg, hsl(350 80% 60%), hsl(20 80% 60%))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "white", flexShrink: 0 }}>
-            {initials}
-          </div>
+          <ShopAvatar shop={shop} />
         )}
 
         {/* Name + status */}
@@ -99,13 +108,59 @@ function ShopBadge() {
           </div>
         </div>
 
-        {/* Link to shop on Etsy (only if connected) */}
-        {shop.connected && shop.shopUrl && (
-          <a href={shop.shopUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-            <ExternalLink size={12} color="hsl(var(--text-muted))" />
-          </a>
-        )}
-      </div>
+        {/* Right side icons */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          {shop.connected && shop.shopUrl && (
+            <a href={shop.shopUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+              <ExternalLink size={12} color="hsl(var(--text-muted))" />
+            </a>
+          )}
+          {hasMultiple && (
+            <ChevronDown size={12} color="hsl(var(--text-muted))" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+          )}
+        </div>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div style={{ marginTop: 4, background: "hsl(var(--bg-surface))", border: "1px solid hsl(var(--bg-border))", borderRadius: 8, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.3)", zIndex: 100 }}>
+          <div style={{ padding: "6px 10px 4px", fontSize: 10, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "hsl(var(--text-muted))" }}>
+            Switch Shop
+          </div>
+          {allShops.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => { if (s.id) { switchShop(s.id); setOpen(false); } }}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "7px 10px",
+                background: s.isActive ? "hsl(var(--brand-primary) / 0.1)" : "transparent",
+                border: "none",
+                cursor: "pointer",
+                textAlign: "left",
+                transition: "background 0.1s",
+              }}
+            >
+              <ShopAvatar shop={s} size={22} />
+              <span style={{ flex: 1, fontSize: 12, fontWeight: s.isActive ? 700 : 400, color: "hsl(var(--text-primary))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {s.shopName}
+              </span>
+              {s.isActive && <Check size={13} color="hsl(var(--brand-primary))" />}
+            </button>
+          ))}
+          <div style={{ borderTop: "1px solid hsl(var(--bg-border))", padding: 4 }}>
+            <Link href="/dashboard/settings" onClick={() => setOpen(false)}>
+              <button style={{ width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", background: "transparent", border: "none", cursor: "pointer", fontSize: 11, color: "hsl(var(--text-muted))", borderRadius: 6 }}>
+                <Plus size={12} />
+                Add another shop
+              </button>
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -167,7 +222,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Shop Badge — live from ShopContext (same source as Settings page) */}
+      {/* Shop Switcher Badge */}
       <ShopBadge />
 
       {/* Nav */}
