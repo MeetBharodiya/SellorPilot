@@ -99,7 +99,7 @@ function NoShopBanner() {
 
 export default function OrdersPage() {
   const { shop, loading: shopLoading } = useShop();
-  const { toastError, success } = useToast();
+  const { error, success } = useToast();
   
   const [filter, setFilter] = useState<OrderStatus>("all");
   const [search, setSearch] = useState("");
@@ -140,7 +140,7 @@ export default function OrdersPage() {
       });
       setOrders(mapped);
     } catch (err: any) {
-      toastError("Sync Failed", err.message);
+      error("Sync Failed", err.message);
     } finally {
       setLoading(false);
     }
