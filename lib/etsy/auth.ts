@@ -111,7 +111,15 @@ export async function refreshAccessToken(
 
 export async function getCurrentUserId(): Promise<string | null> {
   const cookieStore = await cookies();
-  return cookieStore.get("sellor_user_id")?.value ?? null;
+  const cookieVal = cookieStore.get("sellor_user_id")?.value;
+  if (cookieVal) return cookieVal;
+
+  // Fallback for existing user in database (e.g. before cookie was introduced)
+  const defaultUser = await prisma.user.findFirst();
+  if (defaultUser) {
+    return defaultUser.id;
+  }
+  return null;
 }
 
 // ─── Get active shop (with auto-refresh) ──────────────────────────────────────

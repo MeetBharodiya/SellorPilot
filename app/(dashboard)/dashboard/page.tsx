@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import TopBar from "@/components/layout/TopBar";
 import { useShop } from "@/context/ShopContext";
@@ -69,7 +69,7 @@ function NoShopBanner() {
       <div style={{ fontSize: 16, fontWeight: 700, color: "hsl(var(--text-primary))", marginBottom: 6 }}>Connect your Etsy shop to see live data</div>
       <div style={{ fontSize: 13, color: "hsl(var(--text-muted))", marginBottom: 20 }}>Dashboard stats, listings, and orders will appear here once connected</div>
       <Link href="/dashboard/settings">
-        <button className="btn btn-primary"><Wifi size={14} />Go to Settings â†’ Connect Shop</button>
+        <button className="btn btn-primary"><Wifi size={14} />Go to Settings → Connect Shop</button>
       </Link>
     </div>
   );
