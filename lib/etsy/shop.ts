@@ -97,6 +97,10 @@ export async function ensurePlatformUser(hint?: {
     if (existing) return existing.id;
   }
 
+  // Reuse existing platform user in DB if present
+  const existingUser = await prisma.user.findFirst();
+  if (existingUser) return existingUser.id;
+
   // Create a new anonymous platform user
   const user = await prisma.user.create({
     data: {

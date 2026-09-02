@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getListingStateColor } from "@/lib/utils";
+import { useShop } from "@/context/ShopContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Listing {
@@ -153,6 +154,7 @@ function ListingRow({ listing, onDelete }: { listing: Listing; onDelete: () => v
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ListingsPage() {
+  const { shop } = useShop();
   const { success, info, warning, error: toastError } = useToast();
   const [listings, setListings]     = useState<Listing[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -181,7 +183,7 @@ export default function ListingsPage() {
     }
   };
 
-  useEffect(() => { fetchListings(); }, [filterState]);
+  useEffect(() => { fetchListings(); }, [filterState, shop?.id, shop?.shopName]);
 
   const handleSync = async () => {
     setSyncing(true);

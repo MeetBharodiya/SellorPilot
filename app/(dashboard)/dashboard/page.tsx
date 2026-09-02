@@ -84,7 +84,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!shop.connected) { setLoading(false); return; }
     fetchStats();
-  }, [shop.connected]);
+  }, [shop.connected, shop.id, shop.shopName]);
 
   const fetchStats = async () => {
     setLoading(true);

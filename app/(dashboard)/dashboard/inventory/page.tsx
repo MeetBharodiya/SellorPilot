@@ -70,7 +70,7 @@ export default function InventoryPage() {
     } else if (!shopLoading && !shop.connected) {
       setLoading(false);
     }
-  }, [shop.connected, shopLoading]);
+  }, [shop.connected, shop.id, shop.shopName, shopLoading]);
 
   const handleSync = async () => {
     setSyncing(true);
