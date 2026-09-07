@@ -66,14 +66,15 @@ export async function getListing(listingId: string): Promise<EtsyListing> {
 // ─── Create listing draft ──────────────────────────────────────────────────────
 
 export interface CreateListingPayload {
-  title:       string;
-  description: string;
-  price:       number;        // in shop currency (INR)
-  quantity:    number;
-  tags:        string[];      // max 13, max 20 chars each
-  state?:      "draft" | "active";
-  taxonomyId?: number;
+  title:              string;
+  description:        string;
+  price:              number;        // in shop currency (INR)
+  quantity:           number;
+  tags:               string[];      // max 13, max 20 chars each
+  state?:             "draft" | "active";
+  taxonomyId?:        number;
   shippingProfileId?: number;
+  readinessStateId?:  number;
 }
 
 export async function createListing(
@@ -95,6 +96,7 @@ export async function createListing(
       is_supply:          false,
       state:              payload.state ?? "draft",
       shipping_profile_id: payload.shippingProfileId,
+      readiness_state_id: payload.readinessStateId ?? 1502437701331,
     }
   );
 }
