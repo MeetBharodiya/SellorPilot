@@ -8,6 +8,7 @@ import {
   createListing,
   uploadListingImage,
   setListingInventory,
+  getShippingProfiles,
 } from "@/lib/etsy/listings";
 import { getActiveShop } from "@/lib/etsy/auth";
 import { SHOP_DEFAULTS } from "@/lib/shop/defaults";
@@ -16,7 +17,7 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const formData   = await req.formData();
+    const formData = await req.formData();
     const imageFiles = formData.getAll("images") as File[];
     const saveToEtsy = formData.get("saveToEtsy") === "true";
 
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       console.log("[AI] No Gemini API key — returning demo result");
       await new Promise((r) => setTimeout(r, 2500));
       aiResult = getMockAIResult();
-      isDemo   = true;
+      isDemo = true;
     } else {
       // ── Real Gemini Vision ──────────────────────────────────────────────────
       const { GoogleGenerativeAI } = await import("@google/generative-ai");
@@ -42,20 +43,20 @@ export async function POST(req: NextRequest) {
 
       const imageParts = await Promise.all(
         imageFiles.map(async (file) => {
-          const bytes  = await file.arrayBuffer();
+          const bytes = await file.arrayBuffer();
           const base64 = Buffer.from(bytes).toString("base64");
           return {
             inlineData: {
-              data:     base64,
+              data: base64,
               mimeType: file.type as "image/jpeg" | "image/png" | "image/webp",
             },
           };
         })
       );
 
-      const result  = await model.generateContent([LISTING_GENERATION_PROMPT, ...imageParts]);
+      const result = await model.generateContent([LISTING_GENERATION_PROMPT, ...imageParts]);
       const rawText = result.response.text();
-      aiResult      = parseAIResponse(rawText);
+      aiResult = parseAIResponse(rawText);
     }
 
     // ── Save to Etsy as draft (if requested and shop is connected) ────────────
@@ -69,29 +70,37 @@ export async function POST(req: NextRequest) {
         // Return AI result but note shop not connected
         return NextResponse.json({
           result: aiResult,
-          demo:   isDemo,
-          saved:  false,
+          demo: isDemo,
+          saved: false,
           saveError: "No Etsy shop connected. Connect in Settings first.",
         });
       }
 
       try {
-        // 1. Create the listing as draft
+        // 1. Fetch shipping profile (required by Etsy for physical listings)
+        const shippingProfiles = await getShippingProfiles();
+        const shippingProfileId = shippingProfiles[0]?.shipping_profile_id;
+        if (!shippingProfileId) {
+          throw new Error("No shipping profile found in your Etsy shop. Please create one in Etsy Seller Hub first.");
+        }
+
+        // 2. Create the listing as draft
         const newListing = await createListing({
-          title:       aiResult.title,
+          title: aiResult.title,
           description: aiResult.description,
-          price:       SHOP_DEFAULTS.pricing.regions.india,
-          quantity:    SHOP_DEFAULTS.quantity,
-          tags:        aiResult.tags,
-          state:       "draft",
+          price: SHOP_DEFAULTS.pricing.regions.india,
+          quantity: SHOP_DEFAULTS.quantity,
+          tags: aiResult.tags,
+          state: "draft",
+          shippingProfileId,
         });
 
-        etsyListingId  = newListing.listing_id;
+        etsyListingId = newListing.listing_id;
         etsyListingUrl = newListing.url;
 
         // 2. Upload all images to the listing
         for (let i = 0; i < imageFiles.length; i++) {
-          const file   = imageFiles[i];
+          const file = imageFiles[i];
           const buffer = Buffer.from(await file.arrayBuffer());
           await uploadListingImage(String(etsyListingId), buffer, file.type, i + 1);
         }
@@ -107,18 +116,18 @@ export async function POST(req: NextRequest) {
       } catch (etsyErr: any) {
         console.error("[AI Route] Etsy save failed:", etsyErr);
         return NextResponse.json({
-          result:    aiResult,
-          demo:      isDemo,
-          saved:     false,
+          result: aiResult,
+          demo: isDemo,
+          saved: false,
           saveError: etsyErr.message,
         });
       }
     }
 
     return NextResponse.json({
-      result:        aiResult,
-      demo:          isDemo,
-      saved:         !!etsyListingId,
+      result: aiResult,
+      demo: isDemo,
+      saved: !!etsyListingId,
       etsyListingId,
       etsyListingUrl,
     });

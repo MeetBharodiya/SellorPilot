@@ -127,6 +127,16 @@ export async function deleteListing(listingId: string): Promise<void> {
   await etsy.delete(`/application/shops/${shopId}/listings/${listingId}`);
 }
 
+// ─── Get shipping profiles ─────────────────────────────────────────────────────
+
+export async function getShippingProfiles(): Promise<{ shipping_profile_id: number; title: string }[]> {
+  const shopId = await getShopId();
+  const res = await etsy.get<{ count: number; results: { shipping_profile_id: number; title: string }[] }>(
+    `/application/shops/${shopId}/shipping-profiles`
+  );
+  return res.results ?? [];
+}
+
 // ─── Upload listing image ──────────────────────────────────────────────────────
 
 export async function uploadListingImage(
