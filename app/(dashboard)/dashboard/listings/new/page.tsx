@@ -216,42 +216,109 @@ function GeneratingScreen({ photoCount }: { photoCount: number }) {
 }
 
 // ─── Saving Screen ────────────────────────────────────────────────────────────
-function SavingScreen({ photoCount }: { photoCount: number }) {
-  const steps = [
-    { icon: "📋", text: "Fetching your shipping profile...",  delay: 0 },
-    { icon: "🛍️", text: "Creating draft listing on Etsy...",  delay: 1200 },
-    { icon: "🖼️", text: `Uploading ${photoCount} photo${photoCount > 1 ? "s" : ""}...`, delay: 2400 },
-    { icon: "📦", text: "Setting up size & shape variants...", delay: 3800 },
-    { icon: "✅", text: "Finalising your listing...",          delay: 5000 },
+type StepStatus = "pending" | "loading" | "done" | "error";
+
+function SavingScreen({
+  photoCount,
+  stepStatus,
+  imageProgress,
+}: {
+  photoCount:    number;
+  stepStatus:    Record<string, StepStatus>;
+  imageProgress: { done: number; total: number } | null;
+}) {
+  const steps: { key: string; icon: string; text: string }[] = [
+    { key: "shipping",  icon: "📋", text: "Fetching your shipping profile..." },
+    { key: "create",    icon: "🛍️", text: "Creating draft listing on Etsy..." },
+    { key: "images",    icon: "🖼️", text: imageProgress ? `Uploading photos (${imageProgress.done}/${imageProgress.total})...` : `Uploading ${photoCount} photo${photoCount > 1 ? "s" : ""}...` },
+    { key: "inventory", icon: "📦", text: "Setting up size & shape variants..." },
+    { key: "finalise",  icon: "✨", text: "Finalising your listing..." },
   ];
+
+  const allDone = steps.every(s => stepStatus[s.key] === "done");
 
   return (
     <div className="glass" style={{ padding: "48px 40px", textAlign: "center" }}>
-      <div style={{ width: 80, height: 80, borderRadius: 24, background: "linear-gradient(135deg, hsl(350 80% 55% / 0.2), hsl(var(--brand-primary) / 0.15))", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
-        <CheckCircle size={36} color="hsl(350 80% 65%)" strokeWidth={1.5} style={{ animation: "pulse 1.5s ease-in-out infinite" }} />
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: "hsl(var(--text-primary))", marginBottom: 8 }}>
-        Saving to your Etsy shop…
-      </div>
-      <div style={{ fontSize: 14, color: "hsl(var(--text-muted))", marginBottom: 36 }}>
-        Creating the draft and uploading your photos. Please wait.
+      {/* Icon */}
+      <div style={{
+        width: 80, height: 80, borderRadius: 24,
+        background: allDone
+          ? "linear-gradient(135deg, hsl(var(--status-success) / 0.25), hsl(var(--status-success) / 0.1))"
+          : "linear-gradient(135deg, hsl(350 80% 55% / 0.2), hsl(var(--brand-primary) / 0.15))",
+        display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px",
+        transition: "background 0.4s",
+      }}>
+        <CheckCircle
+          size={36}
+          color={allDone ? "hsl(var(--status-success))" : "hsl(350 80% 65%)"}
+          strokeWidth={1.5}
+          style={{ animation: allDone ? "none" : "pulse 1.5s ease-in-out infinite" }}
+        />
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 380, margin: "0 auto", textAlign: "left" }}>
-        {steps.map((step, i) => (
-          <div key={i} className="animate-fade-in" style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "hsl(var(--bg-elevated))", border: "1px solid hsl(var(--bg-border))", animationDelay: `${step.delay}ms`, opacity: 0, animationFillMode: "forwards" }}>
-            <span style={{ fontSize: 18 }}>{step.icon}</span>
-            <span style={{ fontSize: 13, color: "hsl(var(--text-secondary))", fontWeight: 500 }}>{step.text}</span>
-            <RefreshCw size={12} color="hsl(350 80% 65%)" style={{ marginLeft: "auto", animation: "spin 1s linear infinite", flexShrink: 0 }} />
-          </div>
-        ))}
+      <div style={{ fontSize: 22, fontWeight: 800, color: "hsl(var(--text-primary))", marginBottom: 8 }}>
+        {allDone ? "Almost there!" : "Saving to your Etsy shop…"}
+      </div>
+      <div style={{ fontSize: 14, color: "hsl(var(--text-muted))", marginBottom: 36 }}>
+        {allDone ? "Wrapping up, you'll be redirected shortly." : "Creating the draft and uploading your photos. Please wait."}
+      </div>
+
+      {/* Steps list */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 420, margin: "0 auto", textAlign: "left" }}>
+        {steps.map((step) => {
+          const status = stepStatus[step.key] ?? "pending";
+          const isPending = status === "pending";
+          const isLoading = status === "loading";
+          const isDone    = status === "done";
+          const isError   = status === "error";
+
+          return (
+            <div
+              key={step.key}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "11px 14px", borderRadius: 10,
+                background: isDone
+                  ? "hsl(var(--status-success) / 0.08)"
+                  : isError
+                  ? "hsl(var(--status-error) / 0.08)"
+                  : isLoading
+                  ? "hsl(var(--brand-primary) / 0.06)"
+                  : "hsl(var(--bg-elevated))",
+                border: `1px solid ${
+                  isDone  ? "hsl(var(--status-success) / 0.3)"
+                  : isError  ? "hsl(var(--status-error) / 0.3)"
+                  : isLoading ? "hsl(var(--brand-primary) / 0.25)"
+                  : "hsl(var(--bg-border))"
+                }`,
+                opacity: isPending ? 0.4 : 1,
+                transition: "all 0.35s ease",
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{step.icon}</span>
+              <span style={{ flex: 1, fontSize: 13, color: "hsl(var(--text-secondary))", fontWeight: isDone ? 600 : 500 }}>
+                {step.text}
+              </span>
+
+              {/* Status indicator */}
+              {isDone && (
+                <CheckCircle size={16} color="hsl(var(--status-success))" style={{ flexShrink: 0, animation: "popIn 0.3s ease" }} />
+              )}
+              {isLoading && (
+                <RefreshCw size={14} color="hsl(var(--brand-primary))" style={{ flexShrink: 0, animation: "spin 0.9s linear infinite" }} />
+              )}
+              {isError && (
+                <span style={{ fontSize: 16, flexShrink: 0 }}>❌</span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <style>{`
-        @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.7; transform:scale(1.1); } }
-        @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-        .animate-fade-in { animation: fadeInUp 0.4s ease forwards; }
-        @keyframes fadeInUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes pulse  { 0%,100%{opacity:1;transform:scale(1)}  50%{opacity:.7;transform:scale(1.1)} }
+        @keyframes spin   { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes popIn  { 0%{transform:scale(0.5);opacity:0} 60%{transform:scale(1.2)} 100%{transform:scale(1);opacity:1} }
       `}</style>
     </div>
   );
@@ -459,6 +526,9 @@ export default function NewListingPage() {
   const [aiResult, setAiResult] = useState<AIResult | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [etsyUrl, setEtsyUrl] = useState<string | null>(null);
+  // Real-time saving progress driven by SSE
+  const [stepStatus, setStepStatus] = useState<Record<string, StepStatus>>({});
+  const [imageProgress, setImageProgress] = useState<{ done: number; total: number } | null>(null);
 
   const addPhotos = useCallback((files: File[]) => {
     const newPhotos = files.slice(0, 10 - photos.length).map((file) => ({
@@ -504,31 +574,62 @@ export default function NewListingPage() {
 
   const handleSave = async () => {
     if (!aiResult) return;
+    // Reset progress state
+    setStepStatus({});
+    setImageProgress(null);
     setStep("saving");
 
     try {
       const formData = new FormData();
-      // Pass photos for upload to Etsy, but pass aiResult as JSON — NO re-running Gemini
       photos.forEach((p) => formData.append("images", p.file));
-      formData.append("saveToEtsy", "true");
       formData.append("aiResult", JSON.stringify(aiResult));
 
-      const res  = await fetch("/api/ai/generate-listing", { method: "POST", body: formData });
-      const data = await res.json();
+      // Stream from the new SSE endpoint
+      const res = await fetch("/api/ai/save-listing", { method: "POST", body: formData });
+      if (!res.ok || !res.body) throw new Error("Connection to save endpoint failed");
 
-      if (data.saved) {
-        success("Draft saved to Etsy! 🎉", "Find it in your Etsy Seller Hub drafts to review and publish.");
-        setEtsyUrl(data.etsyListingUrl ?? null);
-        setStep("done");
-      } else {
-        const msg = data.saveError ?? "Unknown error";
-        if (msg.includes("No Etsy shop")) {
-          toastError("Shop not connected", "Go to Settings → Connect Etsy Shop first.");
-        } else {
-          toastError("Etsy save failed", msg);
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let etsyListingUrl: string | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value, { stream: true });
+        // Parse SSE lines: "data: {...}"
+        for (const line of text.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+
+            if (evt.step === "error") {
+              toastError("Etsy save failed", evt.message);
+              setStep("result");
+              return;
+            }
+
+            if (evt.step === "images" && evt.status === "progress") {
+              setImageProgress({ done: evt.done, total: evt.total });
+              continue;
+            }
+
+            if (evt.step && evt.status) {
+              setStepStatus(prev => ({ ...prev, [evt.step]: evt.status }));
+            }
+
+            if (evt.step === "finalise" && evt.status === "done") {
+              etsyListingUrl = evt.etsyListingUrl ?? null;
+            }
+          } catch { /* malformed chunk, skip */ }
         }
-        setStep("result"); // go back to review so user can retry
       }
+
+      // All done
+      success("Draft saved to Etsy! 🎉", "Find it in your Etsy Seller Hub drafts to review and publish.");
+      setEtsyUrl(etsyListingUrl);
+      setStep("done");
+
     } catch (err: any) {
       toastError("Save failed", err.message);
       setStep("result");
@@ -539,6 +640,8 @@ export default function NewListingPage() {
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setPhotos([]);
     setAiResult(null);
+    setStepStatus({});
+    setImageProgress(null);
     setStep("upload");
   };
 
@@ -598,8 +701,14 @@ export default function NewListingPage() {
         {/* Generating */}
         {step === "generating" && <GeneratingScreen photoCount={photos.length} />}
 
-        {/* Saving to Etsy */}
-        {step === "saving" && <SavingScreen photoCount={photos.length} />}
+        {/* Saving to Etsy — real-time SSE progress */}
+        {step === "saving" && (
+          <SavingScreen
+            photoCount={photos.length}
+            stepStatus={stepStatus}
+            imageProgress={imageProgress}
+          />
+        )}
 
         {/* Result / Review */}
         {step === "result" && aiResult && (
