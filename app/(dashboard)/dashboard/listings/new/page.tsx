@@ -215,6 +215,49 @@ function GeneratingScreen({ photoCount }: { photoCount: number }) {
   );
 }
 
+// ─── Saving Screen ────────────────────────────────────────────────────────────
+function SavingScreen({ photoCount }: { photoCount: number }) {
+  const steps = [
+    { icon: "📋", text: "Fetching your shipping profile...",  delay: 0 },
+    { icon: "🛍️", text: "Creating draft listing on Etsy...",  delay: 1200 },
+    { icon: "🖼️", text: `Uploading ${photoCount} photo${photoCount > 1 ? "s" : ""}...`, delay: 2400 },
+    { icon: "📦", text: "Setting up size & shape variants...", delay: 3800 },
+    { icon: "✅", text: "Finalising your listing...",          delay: 5000 },
+  ];
+
+  return (
+    <div className="glass" style={{ padding: "48px 40px", textAlign: "center" }}>
+      <div style={{ width: 80, height: 80, borderRadius: 24, background: "linear-gradient(135deg, hsl(350 80% 55% / 0.2), hsl(var(--brand-primary) / 0.15))", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
+        <CheckCircle size={36} color="hsl(350 80% 65%)" strokeWidth={1.5} style={{ animation: "pulse 1.5s ease-in-out infinite" }} />
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: "hsl(var(--text-primary))", marginBottom: 8 }}>
+        Saving to your Etsy shop…
+      </div>
+      <div style={{ fontSize: 14, color: "hsl(var(--text-muted))", marginBottom: 36 }}>
+        Creating the draft and uploading your photos. Please wait.
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 380, margin: "0 auto", textAlign: "left" }}>
+        {steps.map((step, i) => (
+          <div key={i} className="animate-fade-in" style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "hsl(var(--bg-elevated))", border: "1px solid hsl(var(--bg-border))", animationDelay: `${step.delay}ms`, opacity: 0, animationFillMode: "forwards" }}>
+            <span style={{ fontSize: 18 }}>{step.icon}</span>
+            <span style={{ fontSize: 13, color: "hsl(var(--text-secondary))", fontWeight: 500 }}>{step.text}</span>
+            <RefreshCw size={12} color="hsl(350 80% 65%)" style={{ marginLeft: "auto", animation: "spin 1s linear infinite", flexShrink: 0 }} />
+          </div>
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.7; transform:scale(1.1); } }
+        @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+        .animate-fade-in { animation: fadeInUp 0.4s ease forwards; }
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+      `}</style>
+    </div>
+  );
+}
+
+
 // ─── Result Preview Card ──────────────────────────────────────────────────────
 function ResultPreview({ result, photos, onRegenerate, onSave, saving, demo }: {
   result: AIResult;
@@ -465,23 +508,27 @@ export default function NewListingPage() {
 
     try {
       const formData = new FormData();
+      // Pass photos for upload to Etsy, but pass aiResult as JSON — NO re-running Gemini
       photos.forEach((p) => formData.append("images", p.file));
       formData.append("saveToEtsy", "true");
+      formData.append("aiResult", JSON.stringify(aiResult));
 
       const res  = await fetch("/api/ai/generate-listing", { method: "POST", body: formData });
       const data = await res.json();
 
       if (data.saved) {
-        success("Draft saved to Etsy! 🎉", "Find it in your shop to review and publish.");
+        success("Draft saved to Etsy! 🎉", "Find it in your Etsy Seller Hub drafts to review and publish.");
         setEtsyUrl(data.etsyListingUrl ?? null);
-      } else if (data.saveError) {
-        if (data.saveError.includes("No Etsy shop")) {
+        setStep("done");
+      } else {
+        const msg = data.saveError ?? "Unknown error";
+        if (msg.includes("No Etsy shop")) {
           toastError("Shop not connected", "Go to Settings → Connect Etsy Shop first.");
         } else {
-          toastError("Etsy save failed", data.saveError);
+          toastError("Etsy save failed", msg);
         }
+        setStep("result"); // go back to review so user can retry
       }
-      setStep("done");
     } catch (err: any) {
       toastError("Save failed", err.message);
       setStep("result");
@@ -551,14 +598,17 @@ export default function NewListingPage() {
         {/* Generating */}
         {step === "generating" && <GeneratingScreen photoCount={photos.length} />}
 
-        {/* Result / Saving */}
-        {(step === "result" || step === "saving") && aiResult && (
+        {/* Saving to Etsy */}
+        {step === "saving" && <SavingScreen photoCount={photos.length} />}
+
+        {/* Result / Review */}
+        {step === "result" && aiResult && (
           <ResultPreview
             result={aiResult}
             photos={photos}
             onRegenerate={handleGenerate}
             onSave={handleSave}
-            saving={step === "saving"}
+            saving={false}
             demo={isDemo}
           />
         )}
