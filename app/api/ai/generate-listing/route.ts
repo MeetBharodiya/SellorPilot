@@ -3,7 +3,9 @@ import {
   LISTING_GENERATION_PROMPT,
   parseAIResponse,
   getMockAIResult,
+  getPromptForCategory,
 } from "@/lib/ai/listing-generator";
+import type { CategoryKey } from "@/lib/categories/config";
 import {
   createListing,
   uploadListingImage,
@@ -35,6 +37,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "At least one image is required" }, { status: 400 });
     }
 
+    // Read category and optional seller description
+    const categoryKey       = (formData.get("categoryKey") as CategoryKey) || "press_on_nails";
+    const sellerDescription = (formData.get("sellerDescription") as string) || "";
+
     const apiKey = process.env.GEMINI_API_KEY;
     let aiResult;
     let isDemo = false;
@@ -62,12 +68,12 @@ export async function POST(req: NextRequest) {
         })
       );
 
-      const result  = await model.generateContent([LISTING_GENERATION_PROMPT, ...imageParts]);
+      const result  = await model.generateContent([getPromptForCategory(categoryKey, sellerDescription), ...imageParts]);
       const rawText = result.response.text();
       aiResult      = parseAIResponse(rawText);
     }
 
-    return NextResponse.json({ result: aiResult, demo: isDemo, saved: false });
+    return NextResponse.json({ result: aiResult, demo: isDemo, saved: false, categoryKey });
 
   } catch (err: any) {
     console.error("[AI generate-listing]", err);

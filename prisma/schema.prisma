@@ -69,6 +69,7 @@ model Shop {
   refreshToken  String?  // encrypted
   tokenExpiry   DateTime?
   currency      String   @default("USD")
+  defaultCategory String @default("press_on_nails")  // CategoryKey from lib/categories/config.ts
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

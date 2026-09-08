@@ -7,6 +7,7 @@ import {
 } from "@/lib/etsy/listings";
 import { getActiveShop } from "@/lib/etsy/auth";
 import { SHOP_DEFAULTS } from "@/lib/shop/defaults";
+import { getCategoryConfig } from "@/lib/categories/config";
 
 export const maxDuration = 60;
 
@@ -21,6 +22,8 @@ export async function POST(req: NextRequest) {
   const formData   = await req.formData();
   const imageFiles = formData.getAll("images") as File[];
   const aiResult   = JSON.parse(formData.get("aiResult") as string);
+  const categoryKey = formData.get("categoryKey") as string || "press_on_nails";
+  const category   = getCategoryConfig(categoryKey);
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -45,6 +48,7 @@ export async function POST(req: NextRequest) {
         send("shipping", "done");
 
         // ── Step 2: create draft listing ─────────────────────────────────────
+        // 2. Create listing as draft with correct category taxonomy
         send("create", "loading");
         const newListing = await createListing({
           title:            aiResult.title,
@@ -54,6 +58,7 @@ export async function POST(req: NextRequest) {
           tags:             aiResult.tags,
           state:            "draft",
           shippingProfileId,
+          taxonomyId:       category.etsyTaxonomyId,
         });
         const etsyListingId  = newListing.listing_id;
         const etsyListingUrl = newListing.url;
@@ -70,14 +75,17 @@ export async function POST(req: NextRequest) {
         send("images", "done");
 
         // ── Step 4: inventory variants ───────────────────────────────────────
+        // 4. Set inventory variants — only for categories that use them (e.g. nails)
         send("inventory", "loading");
-        try {
-          await setListingInventory(String(etsyListingId));
-          send("inventory", "done");
-        } catch {
-          // Non-fatal — some shop configs don't support variants via API
-          send("inventory", "done"); // still mark done so UX isn't blocked
+        if (!category.skipInventoryVariants) {
+          try {
+            await setListingInventory(String(etsyListingId));
+          } catch {
+            // Non-fatal — some shop configs don't support variants via API
+            console.warn("[save-listing] Inventory setup skipped:", category.key);
+          }
         }
+        send("inventory", "done");
 
         // ── Step 5: finalise ─────────────────────────────────────────────────
         send("finalise", "done", { saved: true, etsyListingId, etsyListingUrl });
