@@ -22,6 +22,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { CATEGORY_LIST, getCategoryConfig, DEFAULT_CATEGORY } from "@/lib/categories/config";
+import type { CategoryKey } from "@/lib/categories/config";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface UploadedPhoto {
@@ -529,6 +531,9 @@ export default function NewListingPage() {
   // Real-time saving progress driven by SSE
   const [stepStatus, setStepStatus] = useState<Record<string, StepStatus>>({});
   const [imageProgress, setImageProgress] = useState<{ done: number; total: number } | null>(null);
+  // Category + optional seller description
+  const [categoryKey, setCategoryKey] = useState<CategoryKey>(DEFAULT_CATEGORY);
+  const [sellerDescription, setSellerDescription] = useState("");
 
   const addPhotos = useCallback((files: File[]) => {
     const newPhotos = files.slice(0, 10 - photos.length).map((file) => ({
@@ -554,6 +559,8 @@ export default function NewListingPage() {
     try {
       const formData = new FormData();
       photos.forEach((p) => formData.append("images", p.file));
+      formData.append("categoryKey", categoryKey);
+      if (sellerDescription.trim()) formData.append("sellerDescription", sellerDescription.trim());
 
       const res = await fetch("/api/ai/generate-listing", {
         method: "POST",
@@ -583,6 +590,7 @@ export default function NewListingPage() {
       const formData = new FormData();
       photos.forEach((p) => formData.append("images", p.file));
       formData.append("aiResult", JSON.stringify(aiResult));
+      formData.append("categoryKey", categoryKey);
 
       // Stream from the new SSE endpoint
       const res = await fetch("/api/ai/save-listing", { method: "POST", body: formData });
@@ -642,6 +650,7 @@ export default function NewListingPage() {
     setAiResult(null);
     setStepStatus({});
     setImageProgress(null);
+    setSellerDescription("");  // reset description; keep categoryKey for next listing
     setStep("upload");
   };
 
@@ -663,35 +672,95 @@ export default function NewListingPage() {
         {/* Upload step */}
         {(step === "upload") && (
           <div>
-            <div className="glass" style={{ padding: "28px 32px", marginBottom: 20 }}>
+            {/* ── Category Selector ─────────────────────────────────────────── */}
+            <div className="glass" style={{ padding: "16px 24px", marginBottom: 16, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-secondary))", whiteSpace: "nowrap" }}>Product Category</span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {CATEGORY_LIST.map(cat => (
+                  <button
+                    key={cat.key}
+                    onClick={() => setCategoryKey(cat.key)}
+                    className={categoryKey === cat.key ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}
+                    style={{ gap: 6 }}
+                  >
+                    <span>{cat.icon}</span>{cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Photo Upload ───────────────────────────────────────────────── */}
+            <div className="glass" style={{ padding: "28px 32px", marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
                 <ImageIcon size={18} color="hsl(var(--brand-primary))" />
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "hsl(var(--text-primary))" }}>Upload your nail photos</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "hsl(var(--text-primary))" }}>Upload product photos</div>
                   <div style={{ fontSize: 13, color: "hsl(var(--text-muted))" }}>AI will analyze them and write your complete Etsy listing</div>
                 </div>
               </div>
               <PhotoUploadZone photos={photos} onAdd={addPhotos} onRemove={removePhoto} />
             </div>
 
-            {photos.length > 0 && (
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleGenerate}
-                  style={{ padding: "14px 32px", fontSize: 15, gap: 10 }}
-                >
-                  <Sparkles size={18} />
-                  Generate Listing with AI
-                </button>
-              </div>
-            )}
+            {/* ── Dynamic Description Field ──────────────────────────────────── */}
+            {(() => {
+              const cat = getCategoryConfig(categoryKey);
+              return (
+                <div className="glass" style={{ padding: "20px 24px", marginBottom: 16 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-secondary))", display: "block", marginBottom: 8 }}>
+                    {cat.descriptionLabel}
+                    {cat.requiresDescription && <span style={{ color: "hsl(var(--status-error))", marginLeft: 4 }}>*</span>}
+                  </label>
+                  <textarea
+                    value={sellerDescription}
+                    onChange={e => setSellerDescription(e.target.value)}
+                    placeholder={cat.descriptionPlaceholder}
+                    rows={cat.requiresDescription ? 4 : 3}
+                    style={{
+                      width: "100%", padding: "10px 12px", borderRadius: 8,
+                      background: "hsl(var(--bg-elevated))", border: "1px solid hsl(var(--bg-border))",
+                      color: "hsl(var(--text-primary))", fontSize: 13, lineHeight: 1.6,
+                      resize: "vertical", fontFamily: "inherit", outline: "none",
+                      boxSizing: "border-box" as const,
+                    }}
+                  />
+                  {!cat.requiresDescription && (
+                    <div style={{ fontSize: 11, color: "hsl(var(--text-muted))", marginTop: 4 }}>
+                      Optional — helps AI write more accurate content
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* ── Generate Button ────────────────────────────────────────────── */}
+            {photos.length > 0 && (() => {
+              const cat = getCategoryConfig(categoryKey);
+              const canGenerate = !cat.requiresDescription || sellerDescription.trim().length > 0;
+              return (
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, alignItems: "center" }}>
+                  {!canGenerate && (
+                    <span style={{ fontSize: 12, color: "hsl(var(--status-error))" }}>
+                      Please add a product description before generating
+                    </span>
+                  )}
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleGenerate}
+                    disabled={!canGenerate}
+                    style={{ padding: "14px 32px", fontSize: 15, gap: 10, opacity: canGenerate ? 1 : 0.5 }}
+                  >
+                    <Sparkles size={18} />
+                    Generate Listing with AI
+                  </button>
+                </div>
+              );
+            })()}
 
             {photos.length === 0 && (
               <div className="glass" style={{ padding: "16px 20px", display: "flex", gap: 12, alignItems: "flex-start" }}>
                 <AlertCircle size={16} color="hsl(var(--brand-secondary))" style={{ flexShrink: 0, marginTop: 1 }} />
                 <div style={{ fontSize: 13, color: "hsl(var(--text-muted))", lineHeight: 1.6 }}>
-                  <strong style={{ color: "hsl(var(--text-secondary))" }}>Tips for best AI results:</strong> Upload 3–5 photos from different angles · Include close-ups of the nail art design · Good lighting helps AI detect colors accurately
+                  <strong style={{ color: "hsl(var(--text-secondary))" }}>Tips for best AI results:</strong> Upload 3–5 photos from different angles · Good lighting helps AI detect colors accurately
                 </div>
               </div>
             )}
