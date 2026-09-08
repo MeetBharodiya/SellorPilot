@@ -4,6 +4,7 @@ import {
   uploadListingImage,
   setListingInventory,
   getShippingProfiles,
+  resolveShopSectionId,
 } from "@/lib/etsy/listings";
 import { getActiveShop } from "@/lib/etsy/auth";
 import { SHOP_DEFAULTS } from "@/lib/shop/defaults";
@@ -48,8 +49,11 @@ export async function POST(req: NextRequest) {
         send("shipping", "done");
 
         // ── Step 2: create draft listing ─────────────────────────────────────
-        // 2. Create listing as draft with correct category taxonomy
         send("create", "loading");
+
+        // FIX 5: Resolve the shop section that best matches the AI-generated section name
+        const shopSectionId = await resolveShopSectionId(aiResult.section).catch(() => null);
+
         const newListing = await createListing({
           title:            aiResult.title,
           description:      aiResult.description,
@@ -59,6 +63,7 @@ export async function POST(req: NextRequest) {
           state:            "draft",
           shippingProfileId,
           taxonomyId:       category.etsyTaxonomyId,
+          shopSectionId:    shopSectionId ?? undefined,
         });
         const etsyListingId  = newListing.listing_id;
         const etsyListingUrl = newListing.url;

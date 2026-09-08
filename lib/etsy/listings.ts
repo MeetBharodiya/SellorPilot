@@ -44,9 +44,9 @@ export async function getShopListings(
 ): Promise<EtsyListingsResponse> {
   const shopId = await getShopId();
   const params = new URLSearchParams({
-    limit:          String(limit),
-    offset:         String(offset),
-    includes:       "Images",
+    limit:    String(limit),
+    offset:   String(offset),
+    includes: "Images",
   });
   if (state !== "all") params.set("state", state);
 
@@ -63,18 +63,55 @@ export async function getListing(listingId: string): Promise<EtsyListing> {
   );
 }
 
+// ─── Get shop sections ─────────────────────────────────────────────────────────
+
+export async function getShopSections(): Promise<{ shop_section_id: number; title: string }[]> {
+  const shopId = await getShopId();
+  const res = await etsy.get<{ count: number; results: { shop_section_id: number; title: string }[] }>(
+    `/application/shops/${shopId}/sections`
+  );
+  return res.results ?? [];
+}
+
+/**
+ * Find the best matching shop_section_id for an AI-generated section name.
+ * Returns null if no section matches or shop has no sections.
+ */
+export async function resolveShopSectionId(sectionName?: string): Promise<number | null> {
+  if (!sectionName) return null;
+  const sections = await getShopSections();
+  if (!sections.length) return null;
+
+  const needle = sectionName.toLowerCase().trim();
+
+  // Exact match first
+  const exact = sections.find(s => s.title.toLowerCase() === needle);
+  if (exact) return exact.shop_section_id;
+
+  // Partial match (e.g. "Press-On Sets" matches "Press On Collection")
+  const partial = sections.find(s =>
+    s.title.toLowerCase().includes(needle) ||
+    needle.includes(s.title.toLowerCase().split(" ")[0].toLowerCase())
+  );
+  if (partial) return partial.shop_section_id;
+
+  // Fall back to first section
+  return sections[0].shop_section_id;
+}
+
 // ─── Create listing draft ──────────────────────────────────────────────────────
 
 export interface CreateListingPayload {
   title:              string;
   description:        string;
-  price:              number;        // in shop currency (INR)
+  price:              number;       // in shop currency (INR)
   quantity:           number;
-  tags:               string[];      // max 13, max 20 chars each
+  tags:               string[];     // max 13, max 20 chars each
   state?:             "draft" | "active";
   taxonomyId?:        number;
   shippingProfileId?: number;
   readinessStateId?:  number;
+  shopSectionId?:     number;       // FIX 5: shop section
 }
 
 export async function createListing(
@@ -82,22 +119,30 @@ export async function createListing(
 ): Promise<EtsyListing> {
   const shopId = await getShopId();
 
+  const body: Record<string, unknown> = {
+    title:               payload.title.slice(0, 140),
+    description:         payload.description,
+    price:               payload.price,
+    quantity:            payload.quantity ?? SHOP_DEFAULTS.quantity,
+    tags:                payload.tags.slice(0, 13),
+    who_made:            "i_did",
+    when_made:           "made_to_order",
+    // FIX 1: correct taxonomy ID — 264 = Bath & Beauty > Nails > Acrylic & Press On Nails
+    taxonomy_id:         payload.taxonomyId ?? 264,
+    is_supply:           false,
+    state:               payload.state ?? "draft",
+    shipping_profile_id: payload.shippingProfileId,
+    readiness_state_id:  payload.readinessStateId ?? 1502437701331,
+  };
+
+  // FIX 5: include shop_section_id only if provided (undefined omits it)
+  if (payload.shopSectionId) {
+    body.shop_section_id = payload.shopSectionId;
+  }
+
   return etsy.post<EtsyListing>(
     `/application/shops/${shopId}/listings`,
-    {
-      title:              payload.title.slice(0, 140),
-      description:        payload.description,
-      price:              payload.price,
-      quantity:           payload.quantity ?? SHOP_DEFAULTS.quantity,
-      tags:               payload.tags.slice(0, 13),
-      who_made:           "i_did",
-      when_made:          "made_to_order",
-      taxonomy_id:        payload.taxonomyId ?? 2078,  // Accessories > Nail Art
-      is_supply:          false,
-      state:              payload.state ?? "draft",
-      shipping_profile_id: payload.shippingProfileId,
-      readiness_state_id: payload.readinessStateId ?? 1502437701331,
-    }
+    body
   );
 }
 
@@ -149,7 +194,6 @@ export async function uploadListingImage(
 ): Promise<EtsyListingImage> {
   const shopId = await getShopId();
 
-  // Etsy requires multipart/form-data for image uploads — use FormData
   const { getActiveShop } = await import("./auth");
   const shop = await getActiveShop();
   if (!shop) throw new Error("No connected shop");
@@ -164,7 +208,6 @@ export async function uploadListingImage(
 
   const apiKey      = process.env.ETSY_API_KEY!;
   const sharedSecret = process.env.ETSY_SHARED_SECRET!;
-  // Etsy image upload endpoint requires "keystring:shared_secret" format
   const xApiKeyValue = sharedSecret ? `${apiKey}:${sharedSecret}` : apiKey;
 
   const res = await fetch(
@@ -174,7 +217,6 @@ export async function uploadListingImage(
       headers: {
         "x-api-key":   xApiKeyValue,
         Authorization: `Bearer ${shop.accessToken}`,
-        // Don't set Content-Type — node sets it automatically with multipart boundary
       },
       body: form,
     }
@@ -188,23 +230,48 @@ export async function uploadListingImage(
 }
 
 // ─── Set listing inventory (variations) ───────────────────────────────────────
+//
+// FIX 2: Use correct property_id for taxonomy 264 (Acrylic & Press On Nails):
+//   - property_id 100 (TeeShirtSize / "Size") with scale_id 301 (Alpha) for XS/S/M/L/XL/Custom
+//   - property_id 513 (Custom1) for nail Shape — free-text custom property
+//
+// FIX 3: price_on_property: [] = global price (same price for all variants)
+//         Each offering still carries the price to satisfy the API.
+//
+// FIX 4: sku_on_property: [100, 513] = SKU unique per Size+Shape combo.
 
 export async function setListingInventory(listingId: string): Promise<void> {
   const sizes  = SHOP_DEFAULTS.sizeVariant.options.filter((o) => o.enabled).map((o) => o.name);
   const shapes = SHOP_DEFAULTS.shapeVariant.options.filter((o) => o.enabled).map((o) => o.name);
-  const price  = SHOP_DEFAULTS.pricing.regions.india;
+
+  // Global prices for all 3 regions (INR — Etsy converts to buyer's currency)
+  const priceIndia = SHOP_DEFAULTS.pricing.regions.india;   // ₹3,450
 
   // Build cross-product of sizes × shapes
   const products = sizes.flatMap((size) =>
     shapes.map((shape) => ({
-      sku:           `ORRA-${size}-${shape.replace(/\s+/g, "-").toUpperCase()}`,
+      // FIX 4: SKU per size+shape combination
+      sku: `ORRA-${size}-${shape.replace(/[\s/]+/g, "-").toUpperCase()}`,
       property_values: [
-        { property_id: 200, property_name: "Size",  values: [size]  },
-        { property_id: 52,  property_name: "Shape", values: [shape] },
+        {
+          // FIX 2: property_id 100 = "Size" for taxonomy 264, scale_id 301 = Alpha (XS/S/M/L/XL)
+          property_id:   100,
+          property_name: "Size",
+          scale_id:      301,
+          values:        [size],
+        },
+        {
+          // FIX 2: property_id 513 = Custom Property 1 → used for "Shape"
+          property_id:   513,
+          property_name: "Shape",
+          scale_id:      null,
+          values:        [shape],
+        },
       ],
       offerings: [
         {
-          price:      price,
+          // FIX 3: each offering carries the global price (all variants same price)
+          price:      priceIndia,
           quantity:   SHOP_DEFAULTS.quantity,
           is_enabled: true,
         },
@@ -214,8 +281,10 @@ export async function setListingInventory(listingId: string): Promise<void> {
 
   await etsy.put(`/application/listings/${listingId}/inventory`, {
     products,
-    price_on_property:    [200],  // price varies by Size property
+    // FIX 3: price_on_property: [] means global price (not per-variant price)
+    price_on_property:    [],
     quantity_on_property: [],
-    sku_on_property:      [],
+    // FIX 4: SKU is unique per Size+Shape combo
+    sku_on_property:      [100, 513],
   });
 }

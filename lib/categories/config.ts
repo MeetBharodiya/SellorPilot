@@ -24,7 +24,7 @@ export const CATEGORIES: Record<CategoryKey, CategoryConfig> = {
   press_on_nails: {
     key:                   "press_on_nails",
     label:                 "Press-On Nails",
-    etsyTaxonomyId:        2078,        // Accessories > Nail Art
+    etsyTaxonomyId:        264,         // Bath & Beauty > Makeup & Cosmetics > Nails > Acrylic & Press On Nails
     requiresDescription:   false,
     descriptionLabel:      "Add context for AI (optional)",
     descriptionPlaceholder: "e.g. This is a bridal set with gold foiling, coffin shape, meant for weddings...",
