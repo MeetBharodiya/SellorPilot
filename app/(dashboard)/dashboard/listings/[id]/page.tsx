@@ -2,29 +2,36 @@
 
 import TopBar from "@/components/layout/TopBar";
 import { useToast } from "@/components/ui/Toast";
-import { ArrowLeft, Save, Send, Trash2, ExternalLink, Plus, X, Edit3, Eye } from "lucide-react";
+import {
+  ArrowLeft, Save, Trash2, ExternalLink,
+  Plus, X, Eye, RefreshCw, AlertCircle,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getListingStateColor } from "@/lib/utils";
 
-// Mock data — replace with real API fetch by ID
-const MOCK_LISTINGS: Record<string, any> = {
-  "1": { id: "1", title: "Handmade Press-On Nails | Butterfly Pink Set | Medium Length", price: "12.99", quantity: "15", state: "active", section: "Press-On Sets", shippingProfile: "Standard India Shipping", whoMade: "I did", whenMade: "Made to order", description: "Beautiful handcrafted butterfly pink press-on nails.\n\n🌸 What's included:\n• 24 nails in assorted sizes\n• Nail glue + prep pad", tags: ["press on nails", "butterfly", "pink nails", "nail art"], views: 142 },
-  "2": { id: "2", title: "Custom Nail Art Set | French Tips | Short Length | Bridal", price: "18.50", quantity: "8", state: "active", section: "Custom Sets", shippingProfile: "Standard India Shipping", whoMade: "I did", whenMade: "Made to order", description: "Elegant french tip bridal nails, perfect for your special day.", tags: ["french tips", "bridal nails", "custom nails"], views: 89 },
-  "3": { id: "3", title: "Holographic Glitter Press-On Nails | Festival Ready", price: "14.99", quantity: "0", state: "sold_out", section: "Press-On Sets", shippingProfile: "Standard India Shipping", whoMade: "I did", whenMade: "Made to order", description: "Dazzling holographic glitter nails for any festival or event.", tags: ["holographic", "glitter nails", "festival nails"], views: 230 },
-  "4": { id: "4", title: "Minimalist Nude Coffin Nails | Everyday Wear", price: "11.00", quantity: "20", state: "draft", section: "Press-On Sets", shippingProfile: "Express Shipping", whoMade: "I did", whenMade: "Made to order", description: "Clean, minimalist nude nails for everyday elegance.", tags: ["nude nails", "coffin shape", "minimalist"], views: 0 },
-  "5": { id: "5", title: "Gothic Black Stiletto Press-On Nails | Halloween", price: "13.99", quantity: "3", state: "inactive", section: "Special Editions", shippingProfile: "Standard India Shipping", whoMade: "I did", whenMade: "Made to order", description: "Dark and dramatic black stiletto nails.", tags: ["black nails", "stiletto", "halloween nails", "gothic"], views: 67 },
-  "6": { id: "6", title: "Cherry Blossom Spring Nails | Sakura Nail Art Set", price: "15.99", quantity: "12", state: "active", section: "Press-On Sets", shippingProfile: "Standard India Shipping", whoMade: "I did", whenMade: "Made to order", description: "Delicate cherry blossom spring nails inspired by Japanese sakura.", tags: ["cherry blossom", "sakura", "spring nails", "floral"], views: 195 },
-};
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface ListingForm {
+  listing_id:   number;
+  title:        string;
+  description:  string;
+  price:        string;
+  quantity:     number;
+  state:        string;
+  tags:         string[];
+  url:          string;
+  views:        number;
+  num_favorers: number;
+  images:       { url_570xN: string; rank: number }[];
+  last_modified_timestamp: number;
+}
 
-const ETSY_CATEGORIES = ["Press-On Sets", "Custom Sets", "Special Editions", "Nail Accessories", "Nail Care", "Gift Sets"];
-const SHIPPING_PROFILES = ["Standard India Shipping", "Express Shipping", "Free Shipping (US Only)"];
-
+// ─── Tag Input ────────────────────────────────────────────────────────────────
 function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) => void }) {
   const [input, setInput] = useState("");
   const add = () => {
-    const v = input.trim().toLowerCase().replace(/,/g, "");
+    const v = input.trim().toLowerCase().replace(/,/g, "").replace(/\s+/g, "-");
     if (v && !tags.includes(v) && tags.length < 13 && v.length <= 20) {
       onChange([...tags, v]); setInput("");
     }
@@ -40,29 +47,141 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
         ))}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <input className="input" style={{ fontSize: 13, height: 36 }} placeholder={tags.length >= 13 ? "Max 13 tags reached" : "Add tag + Enter..."} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }}} disabled={tags.length >= 13} />
+        <input
+          className="input" style={{ fontSize: 13, height: 36 }}
+          placeholder={tags.length >= 13 ? "Max 13 tags reached" : "Add tag + Enter..."}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }}}
+          disabled={tags.length >= 13}
+        />
         <button className="btn btn-secondary btn-sm" onClick={add} disabled={!input.trim() || tags.length >= 13}><Plus size={13} /></button>
       </div>
-      <div style={{ fontSize: 11, color: "hsl(var(--text-muted))", marginTop: 4 }}>{tags.length}/13 · max 20 chars each</div>
+      <div style={{ fontSize: 11, color: "hsl(var(--text-muted))", marginTop: 4 }}>{tags.length}/13 · max 20 chars each · use-hyphens-not-spaces</div>
     </div>
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ListingDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const { success, error: toastError, warning, info } = useToast();
-  const id = params.id as string;
+  const params   = useParams();
+  const router   = useRouter();
+  const { success, error: toastError, warning } = useToast();
+  const id       = params.id as string;
 
-  const base = MOCK_LISTINGS[id];
+  const [loading,        setLoading]        = useState(true);
+  const [fetchError,     setFetchError]     = useState<string | null>(null);
+  const [form,           setForm]           = useState<ListingForm | null>(null);
+  const [saving,         setSaving]         = useState(false);
+  const [deleting,       setDeleting]       = useState(false);
+  const [confirmDelete,  setConfirmDelete]  = useState(false);
 
-  if (!base) {
+  // ── Fetch listing from real Etsy API ────────────────────────────────────────
+  useEffect(() => {
+    setLoading(true);
+    setFetchError(null);
+    fetch(`/api/etsy/listings/${id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          setFetchError(data.error);
+        } else {
+          setForm({
+            listing_id:              data.listing_id,
+            title:                   data.title ?? "",
+            description:             data.description ?? "",
+            price:                   data.price
+              ? String((data.price.amount / data.price.divisor).toFixed(2))
+              : "0.00",
+            quantity:                data.quantity ?? 0,
+            state:                   data.state ?? "draft",
+            tags:                    data.tags ?? [],
+            url:                     data.url ?? "",
+            views:                   data.views ?? 0,
+            num_favorers:            data.num_favorers ?? 0,
+            images:                  data.images ?? [],
+            last_modified_timestamp: data.last_modified_timestamp ?? 0,
+          });
+        }
+      })
+      .catch(err => setFetchError(err.message))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const set = (field: keyof ListingForm, value: any) =>
+    setForm(prev => prev ? { ...prev, [field]: value } : null);
+
+  // ── Save changes ─────────────────────────────────────────────────────────────
+  const handleUpdate = async () => {
+    if (!form) return;
+    if (!form.title.trim() || form.title.length > 140) {
+      toastError("Title is required and must be 140 chars or less"); return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/etsy/listings/${id}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          title:       form.title,
+          description: form.description,
+          tags:        form.tags,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Save failed");
+      success("Listing updated!", "Changes saved to Etsy.");
+    } catch (err: any) {
+      toastError("Save failed", err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Delete listing ────────────────────────────────────────────────────────────
+  const handleDelete = async () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      warning("Click Delete again to confirm", "This will permanently delete the listing from Etsy.");
+      return;
+    }
+    setDeleting(true);
+    try {
+      await fetch(`/api/etsy/listings/${id}`, { method: "DELETE" });
+      success("Listing deleted");
+      router.push("/dashboard/listings");
+    } catch (err: any) {
+      toastError("Delete failed", err.message);
+      setDeleting(false);
+    }
+  };
+
+  // ── Loading state ────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <>
+        <TopBar title="Loading Listing..." />
+        <div style={{ padding: 64, textAlign: "center" }}>
+          <RefreshCw size={28} style={{ animation: "spin 1s linear infinite", color: "hsl(var(--brand-primary))", marginBottom: 12 }} />
+          <div style={{ fontSize: 14, color: "hsl(var(--text-muted))" }}>Fetching listing from Etsy...</div>
+        </div>
+      </>
+    );
+  }
+
+  // ── Error / not found state ───────────────────────────────────────────────────
+  if (fetchError || !form) {
     return (
       <>
         <TopBar title="Listing Not Found" />
-        <div style={{ padding: 48, textAlign: "center", color: "hsl(var(--text-muted))" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Listing #{id} not found</div>
-          <div style={{ marginBottom: 20 }}>This listing may have been deleted or doesn't exist.</div>
+        <div style={{ padding: 48, textAlign: "center", maxWidth: 480, margin: "0 auto" }}>
+          <AlertCircle size={40} color="hsl(var(--status-error))" style={{ marginBottom: 16 }} />
+          <div style={{ fontSize: 18, fontWeight: 700, color: "hsl(var(--text-primary))", marginBottom: 8 }}>
+            Listing #{id} not found on Etsy
+          </div>
+          <div style={{ fontSize: 13, color: "hsl(var(--text-muted))", marginBottom: 24, lineHeight: 1.6 }}>
+            {fetchError ?? "This listing may have been deleted from Etsy or the ID is invalid."}
+          </div>
           <Link href="/dashboard/listings">
             <button className="btn btn-primary"><ArrowLeft size={14} />Back to Listings</button>
           </Link>
@@ -71,68 +190,63 @@ export default function ListingDetailPage() {
     );
   }
 
-  const [form, setForm] = useState({ ...base });
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const set = (field: string, value: any) => setForm((prev: any) => ({ ...prev, [field]: value }));
-
-  const handleUpdate = async () => {
-    if (!form.title.trim() || form.title.length > 140) { toastError("Title is required and must be 140 chars or less"); return; }
-    if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0) { toastError("Enter a valid price"); return; }
-    setSaving(true);
-    await new Promise(r => setTimeout(r, 1000));
-    setSaving(false);
-    success("Listing updated!", "Changes saved successfully.");
-  };
-
-  const handleDelete = async () => {
-    if (!confirmDelete) { setConfirmDelete(true); warning("Click Delete again to confirm", "This action cannot be undone."); return; }
-    setDeleting(true);
-    await new Promise(r => setTimeout(r, 800));
-    setDeleting(false);
-    success("Listing deleted");
-    router.push("/dashboard/listings");
-  };
-
-  const handleDeactivate = () => {
-    set("state", form.state === "active" ? "inactive" : "active");
-    info(form.state === "active" ? "Listing deactivated" : "Listing activated");
-  };
-
-  const titleLen = form.title?.length ?? 0;
+  const titleLen      = form.title.length;
+  const lastModified  = form.last_modified_timestamp
+    ? new Date(form.last_modified_timestamp * 1000).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+    : "—";
 
   return (
     <>
       <TopBar
-        title={`Edit Listing`}
-        subtitle={`ID: ${id} · ${form.views} views`}
+        title="Edit Listing"
+        subtitle={`Etsy ID: ${form.listing_id} · ${form.views} views · ${form.num_favorers} favourites`}
         actions={
           <div style={{ display: "flex", gap: 8 }}>
             <Link href="/dashboard/listings">
               <button className="btn btn-secondary btn-sm"><ArrowLeft size={13} />Back</button>
             </Link>
-            <button className="btn btn-ghost btn-sm" onClick={() => info("Live preview", "Preview will open Etsy listing once connected.")}>
-              <Eye size={13} />Preview on Etsy
-            </button>
+            {form.url && (
+              <a href={form.url} target="_blank" rel="noopener noreferrer">
+                <button className="btn btn-ghost btn-sm"><Eye size={13} />View on Etsy</button>
+              </a>
+            )}
           </div>
         }
       />
 
-      <div style={{ padding: "24px", maxWidth: 860, display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ padding: "24px 32px", maxWidth: 900, display: "flex", flexDirection: "column", gap: 18 }}>
 
         {/* Status bar */}
         <div className="glass" style={{ padding: "12px 18px", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 12, color: "hsl(var(--text-muted))" }}>Status:</span>
-          <span className={`badge ${getListingStateColor(form.state)}`}>{form.state.replace("_", " ").replace(/^\w/, (c: string) => c.toUpperCase())}</span>
-          <button className="btn btn-ghost btn-sm" onClick={handleDeactivate}>
-            {form.state === "active" ? "Deactivate" : "Activate"}
-          </button>
+          <span className={`badge ${getListingStateColor(form.state)}`}>
+            {form.state.replace("_", " ").replace(/^\w/, c => c.toUpperCase())}
+          </span>
           <div style={{ marginLeft: "auto", fontSize: 12, color: "hsl(var(--text-muted))" }}>
-            Last updated: {new Date().toLocaleDateString()}
+            Last updated: {lastModified}
           </div>
         </div>
+
+        {/* Images preview */}
+        {form.images.length > 0 && (
+          <div className="glass" style={{ padding: "18px 20px" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 12 }}>
+              Photos ({form.images.length})
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {form.images
+                .sort((a, b) => a.rank - b.rank)
+                .map((img, i) => (
+                  <img
+                    key={i}
+                    src={img.url_570xN}
+                    alt={`Photo ${i + 1}`}
+                    style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 8, border: "1px solid hsl(var(--bg-border))" }}
+                  />
+                ))}
+            </div>
+          </div>
+        )}
 
         {/* Title */}
         <div className="glass" style={{ padding: "22px 24px" }}>
@@ -140,57 +254,73 @@ export default function ListingDetailPage() {
             <span>Listing Title <span style={{ color: "hsl(var(--status-error))" }}>*</span></span>
             <span style={{ color: titleLen > 140 ? "hsl(var(--status-error))" : "hsl(var(--text-muted))", fontWeight: 400 }}>{titleLen}/140</span>
           </div>
-          <input className="input" style={{ fontSize: 14 }} value={form.title} onChange={e => set("title", e.target.value)} maxLength={160} />
+          <input
+            className="input" style={{ fontSize: 14 }}
+            value={form.title}
+            onChange={e => set("title", e.target.value)}
+            maxLength={140}
+          />
         </div>
 
         {/* Description */}
         <div className="glass" style={{ padding: "22px 24px" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 8 }}>Description <span style={{ color: "hsl(var(--status-error))" }}>*</span></div>
-          <textarea className="input" style={{ minHeight: 180, fontSize: 13, lineHeight: 1.7, resize: "vertical" }} value={form.description} onChange={e => set("description", e.target.value)} />
-        </div>
-
-        {/* Price, Qty, Section */}
-        <div className="glass" style={{ padding: "22px 24px" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 14 }}>Pricing & Inventory</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-            <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 6 }}>Price (USD) *</label>
-              <input className="input" type="number" min="0.01" step="0.01" style={{ fontSize: 14 }} value={form.price} onChange={e => set("price", e.target.value)} />
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 6 }}>Quantity</label>
-              <input className="input" type="number" min="0" style={{ fontSize: 14 }} value={form.quantity} onChange={e => set("quantity", e.target.value)} />
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 6 }}>Section</label>
-              <select className="input" style={{ fontSize: 13 }} value={form.section} onChange={e => set("section", e.target.value)}>
-                {ETSY_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 8 }}>
+            Description <span style={{ color: "hsl(var(--status-error))" }}>*</span>
           </div>
+          <textarea
+            className="input"
+            style={{ minHeight: 240, fontSize: 13, lineHeight: 1.7, resize: "vertical" }}
+            value={form.description}
+            onChange={e => set("description", e.target.value)}
+          />
         </div>
 
         {/* Tags */}
         <div className="glass" style={{ padding: "22px 24px" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 12 }}>Tags ({form.tags.length}/13)</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 12 }}>
+            Tags ({form.tags.length}/13)
+          </div>
           <TagInput tags={form.tags} onChange={t => set("tags", t)} />
         </div>
 
-        {/* Shipping */}
-        <div className="glass" style={{ padding: "22px 24px" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--text-secondary))", marginBottom: 10 }}>Shipping Profile</div>
-          <select className="input" style={{ fontSize: 13 }} value={form.shippingProfile} onChange={e => set("shippingProfile", e.target.value)}>
-            {SHIPPING_PROFILES.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
+        {/* Stats */}
+        <div className="glass" style={{ padding: "16px 20px", display: "flex", gap: 24 }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "hsl(var(--text-primary))" }}>{form.views}</div>
+            <div style={{ fontSize: 11, color: "hsl(var(--text-muted))", marginTop: 2 }}>Views</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "hsl(var(--text-primary))" }}>{form.num_favorers}</div>
+            <div style={{ fontSize: 11, color: "hsl(var(--text-muted))", marginTop: 2 }}>Favourites</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "hsl(var(--text-primary))" }}>₹{Number(form.price).toLocaleString("en-IN")}</div>
+            <div style={{ fontSize: 11, color: "hsl(var(--text-muted))", marginTop: 2 }}>Price</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "hsl(var(--text-primary))" }}>{form.quantity}</div>
+            <div style={{ fontSize: 11, color: "hsl(var(--text-muted))", marginTop: 2 }}>Quantity</div>
+          </div>
+          {form.url && (
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
+              <a href={form.url} target="_blank" rel="noopener noreferrer">
+                <button className="btn btn-ghost btn-sm"><ExternalLink size={13} />Open on Etsy</button>
+              </a>
+            </div>
+          )}
         </div>
 
-        {/* Action Bar */}
+        {/* Action bar */}
         <div className="glass" style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", bottom: 16 }}>
           <button
             className="btn btn-ghost btn-sm"
             onClick={handleDelete}
             disabled={deleting}
-            style={{ color: confirmDelete ? "hsl(var(--status-error))" : "hsl(var(--text-muted))", borderColor: confirmDelete ? "hsl(var(--status-error) / 0.4)" : "transparent", border: "1px solid" }}
+            style={{
+              color:        confirmDelete ? "hsl(var(--status-error))" : "hsl(var(--text-muted))",
+              borderColor:  confirmDelete ? "hsl(var(--status-error) / 0.4)" : "transparent",
+              border:       "1px solid",
+            }}
           >
             <Trash2 size={13} />
             {deleting ? "Deleting..." : confirmDelete ? "Confirm Delete?" : "Delete Listing"}
