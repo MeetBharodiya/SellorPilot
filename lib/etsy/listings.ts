@@ -240,7 +240,7 @@ export async function uploadListingImage(
 //
 // FIX 4: sku_on_property: [100, 513] = SKU unique per Size+Shape combo.
 
-export async function setListingInventory(listingId: string): Promise<void> {
+export async function setListingInventory(listingId: string, listingSku?: string): Promise<void> {
   const sizes  = SHOP_DEFAULTS.sizeVariant.options.filter((o) => o.enabled).map((o) => o.name);
   const shapes = SHOP_DEFAULTS.shapeVariant.options.filter((o) => o.enabled).map((o) => o.name);
 
@@ -248,20 +248,20 @@ export async function setListingInventory(listingId: string): Promise<void> {
   const priceIndia = SHOP_DEFAULTS.pricing.regions.india;   // ₹3,450
 
   // Build cross-product of sizes × shapes
+  // All variants share the same SKU (one listing = one SKU regardless of size/shape)
   const products = sizes.flatMap((size) =>
     shapes.map((shape) => ({
-      // FIX 4: SKU per size+shape combination
-      sku: `ORRA-${size}-${shape.replace(/[\s/]+/g, "-").toUpperCase()}`,
+      sku: listingSku ?? "",  // same SKU for all size+shape combos
       property_values: [
         {
-          // FIX 2: property_id 100 = "Size" for taxonomy 264, scale_id 301 = Alpha (XS/S/M/L/XL)
+          // property_id 100 = "Size" for taxonomy 264, scale_id 301 = Alpha (XS/S/M/L/XL)
           property_id:   100,
           property_name: "Size",
           scale_id:      301,
           values:        [size],
         },
         {
-          // FIX 2: property_id 513 = Custom Property 1 → used for "Shape"
+          // property_id 513 = Custom Property 1 → used for "Shape"
           property_id:   513,
           property_name: "Shape",
           scale_id:      null,
@@ -270,7 +270,6 @@ export async function setListingInventory(listingId: string): Promise<void> {
       ],
       offerings: [
         {
-          // FIX 3: each offering carries the global price (all variants same price)
           price:      priceIndia,
           quantity:   SHOP_DEFAULTS.quantity,
           is_enabled: true,
@@ -281,10 +280,8 @@ export async function setListingInventory(listingId: string): Promise<void> {
 
   await etsy.put(`/application/listings/${listingId}/inventory`, {
     products,
-    // FIX 3: price_on_property: [] means global price (not per-variant price)
-    price_on_property:    [],
+    price_on_property:    [],   // global price — same across all variants
     quantity_on_property: [],
-    // FIX 4: SKU is unique per Size+Shape combo
-    sku_on_property:      [100, 513],
+    sku_on_property:      [],   // SKU is the same for all variants
   });
 }

@@ -5,7 +5,7 @@
  * To add a new category: add an entry to CATEGORIES and create a matching prompt file.
  */
 
-export type CategoryKey = "press_on_nails" | "sarees" | "jewellery";
+export type CategoryKey = "press_on_nails" | "sarees";
 
 export interface CategoryConfig {
   key:                   CategoryKey;
@@ -45,19 +45,6 @@ export const CATEGORIES: Record<CategoryKey, CategoryConfig> = {
     sectionOptions:        ["Silk Sarees", "Cotton Sarees", "Designer Sarees", "Bridal Sarees"],
     defaultPrice:          2500,
     icon:                  "🥻",
-  },
-
-  jewellery: {
-    key:                   "jewellery",
-    label:                 "Jewellery",
-    etsyTaxonomyId:        1234,        // Jewellery > Necklaces (adjust per listing)
-    requiresDescription:   false,
-    descriptionLabel:      "Add details (optional)",
-    descriptionPlaceholder: "e.g. 925 sterling silver, amethyst stone pendant, 18 inch chain included",
-    skipInventoryVariants: true,
-    sectionOptions:        ["Necklaces", "Earrings", "Rings", "Bracelets", "Sets"],
-    defaultPrice:          1200,
-    icon:                  "💍",
   },
 };
 

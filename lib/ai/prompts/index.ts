@@ -17,11 +17,6 @@ export function getPromptForCategory(
     case "sarees":
       return buildSareePrompt(sellerDescription ?? "");
 
-    case "jewellery":
-      // Future: build a jewellery-specific prompt
-      // For now fall back to nails prompt with description context
-      return buildNailsPrompt(sellerDescription);
-
     default:
       return buildNailsPrompt(sellerDescription);
   }
