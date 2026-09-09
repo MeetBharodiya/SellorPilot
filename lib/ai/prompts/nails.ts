@@ -55,7 +55,7 @@ ${SHOP_DEFAULTS.descriptionTemplate.footer}
 
 RULES:
 - Title MUST be under 140 characters
-- Tags MUST be exactly 13, each under 20 characters
+- Tags MUST be EXACTLY 13 items. Do not generate 12, do not generate 14. Count them carefully to ensure there are exactly 13 tags, each under 20 characters.
 - Description must feel warm, inviting, and premium — not robotic
 - Mention the specific colors and design elements you can see in the photos
 - Tags should include a mix of: product type, colors, style, occasion, nail shape, keywords buyers search

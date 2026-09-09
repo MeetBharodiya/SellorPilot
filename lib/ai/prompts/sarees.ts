@@ -64,10 +64,10 @@ Looking for a specific color or design? We also take custom orders — message u
 
 RULES:
 - Title MUST be under 140 characters
-- Tags MUST be exactly 13, each under 20 characters, no spaces (use hyphens)
-- Do NOT include blouse details in WHAT'S INCLUDED if not mentioned by the seller
-- Description must feel premium, warm, and trustworthy — not generic
-- Tags should include: fabric type, weave name, occasion, region of origin, style keywords
+- Tags MUST be EXACTLY 13 items. Do not generate 12, do not generate 14. Count them carefully to ensure there are exactly 13 tags, each under 20 characters.
+- Base the description heavily on the provided SELLER'S DESCRIPTION
+- Mention the specific colors, patterns, and drape styles you can see in the photos
+- Tags should include a mix of: fabric, style, occasion, color, traditional keywords
 
 Return ONLY the JSON object — no extra text, no markdown code blocks, no explanation.`;
 }
