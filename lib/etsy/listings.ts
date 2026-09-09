@@ -231,48 +231,45 @@ export async function uploadListingImage(
 
 // ─── Set listing inventory (variations) ───────────────────────────────────────
 //
-// FIX 2: Use correct property_id for taxonomy 264 (Acrylic & Press On Nails):
-//   - property_id 100 (TeeShirtSize / "Size") with scale_id 301 (Alpha) for XS/S/M/L/XL/Custom
-//   - property_id 513 (Custom1) for nail Shape — free-text custom property
+// Taxonomy 264 (Acrylic & Press On Nails) — valid variation property IDs:
+//   property_id 513 (Custom1) = "Size"  — free-text, no scale
+//   property_id 514 (Custom2) = "Shape" — free-text, no scale
 //
-// FIX 3: price_on_property: [] = global price (same price for all variants)
-//         Each offering still carries the price to satisfy the API.
-//
-// FIX 4: sku_on_property: [100, 513] = SKU unique per Size+Shape combo.
+// Note: property_id 100 ("TeeShirtSize") is DEPRECATED and rejected by Etsy API.
+//       Each offering also requires readiness_state_id (same as the listing itself).
 
 export async function setListingInventory(listingId: string, listingSku?: string): Promise<void> {
   const sizes  = SHOP_DEFAULTS.sizeVariant.options.filter((o) => o.enabled).map((o) => o.name);
   const shapes = SHOP_DEFAULTS.shapeVariant.options.filter((o) => o.enabled).map((o) => o.name);
 
-  // Global prices for all 3 regions (INR — Etsy converts to buyer's currency)
   const priceIndia = SHOP_DEFAULTS.pricing.regions.india;   // ₹3,450
 
   // Build cross-product of sizes × shapes
-  // All variants share the same SKU (one listing = one SKU regardless of size/shape)
+  // All variants share the same SKU (one listing = one SKU)
   const products = sizes.flatMap((size) =>
     shapes.map((shape) => ({
-      sku: listingSku ?? "",  // same SKU for all size+shape combos
+      sku: listingSku ?? "",
       property_values: [
         {
-          // property_id 100 = "Size" for taxonomy 264, scale_id 301 = Alpha (XS/S/M/L/XL)
-          property_id:   100,
+          // Custom1 (513) = "Size" — free-text, no scale_id required
+          property_id:   513,
           property_name: "Size",
-          scale_id:      301,
           values:        [size],
         },
         {
-          // property_id 513 = Custom Property 1 → used for "Shape"
-          property_id:   513,
+          // Custom2 (514) = "Shape" — free-text, no scale_id required
+          property_id:   514,
           property_name: "Shape",
-          scale_id:      null,
           values:        [shape],
         },
       ],
       offerings: [
         {
-          price:      priceIndia,
-          quantity:   SHOP_DEFAULTS.quantity,
-          is_enabled: true,
+          price:              priceIndia,
+          quantity:           SHOP_DEFAULTS.quantity,
+          is_enabled:         true,
+          // Each offering requires readiness_state_id (same as the listing)
+          readiness_state_id: 1502437701331,
         },
       ],
     }))
@@ -280,8 +277,9 @@ export async function setListingInventory(listingId: string, listingSku?: string
 
   await etsy.put(`/application/listings/${listingId}/inventory`, {
     products,
-    price_on_property:    [],   // global price — same across all variants
+    price_on_property:    [],   // global price — same for all variants
     quantity_on_property: [],
-    sku_on_property:      [],   // SKU is the same for all variants
+    sku_on_property:      [],   // shared SKU across all variants
   });
 }
+

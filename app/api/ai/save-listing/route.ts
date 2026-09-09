@@ -80,17 +80,12 @@ export async function POST(req: NextRequest) {
         send("images", "done");
 
         // ── Step 4: inventory variants ───────────────────────────────────────
-        // 4. Set inventory variants — only for categories that use them (e.g. nails)
         send("inventory", "loading");
         if (!category.skipInventoryVariants) {
-          try {
-            await setListingInventory(String(etsyListingId));
-          } catch {
-            // Non-fatal — some shop configs don't support variants via API
-            console.warn("[save-listing] Inventory setup skipped:", category.key);
-          }
+          await setListingInventory(String(etsyListingId));
         }
         send("inventory", "done");
+
 
         // ── Step 5: finalise ─────────────────────────────────────────────────
         send("finalise", "done", { saved: true, etsyListingId, etsyListingUrl });
