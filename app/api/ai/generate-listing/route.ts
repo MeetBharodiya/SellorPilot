@@ -68,8 +68,28 @@ export async function POST(req: NextRequest) {
         })
       );
 
-      const result  = await model.generateContent([getPromptForCategory(categoryKey, sellerDescription), ...imageParts]);
-      const rawText = result.response.text();
+      const prompt = getPromptForCategory(categoryKey, sellerDescription);
+      const parts = [prompt, ...imageParts];
+      
+      let retries = 3;
+      let result;
+      while (retries > 0) {
+        try {
+          result = await model.generateContent(parts);
+          break; // success
+        } catch (error: any) {
+          retries--;
+          // If it's a 503 (Service Unavailable) or 429 (Rate Limit) and we have retries left, wait and try again
+          if ((error?.status === 503 || error?.status === 429 || error?.message?.includes("503") || error?.message?.includes("429")) && retries > 0) {
+            console.warn(`[AI] Gemini API returned ${error?.status || '503/429'}. Retrying in 2s... (${retries} retries left)`);
+            await new Promise(r => setTimeout(r, 2000));
+          } else {
+            throw error;
+          }
+        }
+      }
+      
+      const rawText = result!.response.text();
       aiResult      = parseAIResponse(rawText);
     }
 
