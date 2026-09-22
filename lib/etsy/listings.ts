@@ -239,7 +239,17 @@ export async function uploadListingImage(
 //       Each offering also requires readiness_state_id (same as the listing itself).
 
 export async function setListingInventory(listingId: string, listingSku?: string): Promise<void> {
-  const sizes  = SHOP_DEFAULTS.sizeVariant.options.filter((o) => o.enabled).map((o) => o.name);
+  // Format sizes as "XS (14,10,11,10,8)"
+  const sizes = SHOP_DEFAULTS.sizeVariant.options
+    .filter((o) => o.enabled)
+    .map((o) => {
+      if (o.measurements) {
+        const m = o.measurements;
+        return `${o.name} (${m.thumb},${m.index},${m.middle},${m.ring},${m.pinky})`;
+      }
+      return o.name; // e.g. "Custom Size"
+    });
+
   const shapes = SHOP_DEFAULTS.shapeVariant.options.filter((o) => o.enabled).map((o) => o.name);
 
   const priceIndia = SHOP_DEFAULTS.pricing.regions.india;   // ₹3,450
