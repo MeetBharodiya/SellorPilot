@@ -165,38 +165,59 @@ function PhotoUploadZone({
   );
 }
 
-// ─── Tag Input ────────────────────────────────────────────────────────────────
-function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) => void }) {
-  const [input, setInput] = useState("");
-  const add = () => {
-    const v = input.trim().toLowerCase().replace(/\s+/g, "-").replace(/,/g, "").slice(0, 20);
-    if (v && !tags.includes(v) && tags.length < 13) {
-      onChange([...tags, v]); setInput("");
-    }
-  };
+// ─── Tag Textarea ─────────────────────────────────────────────────────────────
+// Parses a raw newline-separated string into cleaned Etsy tags.
+function parseTagLines(raw: string): string[] {
+  return raw
+    .split("\n")
+    .map(line => line.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "").slice(0, 20))
+    .filter(Boolean);
+}
+
+function TagTextarea({
+  rawText,
+  onRawChange,
+}: {
+  rawText: string;
+  onRawChange: (raw: string) => void;
+}) {
+  const tags    = parseTagLines(rawText);
+  const count   = tags.length;
+  const overMax = count > 13;
+  const exact   = count === 13;
+
   return (
     <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-        {tags.map(tag => (
-          <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", background: "hsl(var(--brand-primary) / 0.12)", border: "1px solid hsl(var(--brand-primary) / 0.3)", borderRadius: 6, fontSize: 12, fontWeight: 500 }}>
-            #{tag}
-            <button onClick={() => onChange(tags.filter(t => t !== tag))} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", color: "hsl(var(--text-muted))" }}><X size={10} /></button>
-          </span>
-        ))}
+      <textarea
+        className="input"
+        style={{ minHeight: 220, fontSize: 13, lineHeight: 2.0, resize: "vertical", fontFamily: "inherit" }}
+        placeholder={`Paste or type your 13 tags here — one per line:\n\npress-on-nails\nfloral-nails\nalmond-shape\npink-nails\nnail-art\nhandmade-nails\nreusable-nails\ncute-nails\nspring-nails\ngift-for-her\nfake-nails\nnail-set\nhome-manicure`}
+        value={rawText}
+        onChange={e => onRawChange(e.target.value)}
+      />
+      {/* Live parsed preview */}
+      {tags.length > 0 && (
+        <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 5 }}>
+          {tags.map((tag, i) => (
+            <span key={i} style={{
+              padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 500,
+              background: i >= 13 ? "hsl(var(--status-error) / 0.15)" : "hsl(var(--brand-primary) / 0.12)",
+              border: `1px solid ${i >= 13 ? "hsl(var(--status-error) / 0.4)" : "hsl(var(--brand-primary) / 0.3)"}`,
+              color: i >= 13 ? "hsl(var(--status-error))" : "hsl(var(--text-primary))",
+            }}>#{tag}</span>
+          ))}
+        </div>
+      )}
+      <div style={{
+        marginTop: 8, fontSize: 12, fontWeight: 600,
+        color: exact ? "hsl(var(--status-success))" : overMax ? "hsl(var(--status-error))" : "hsl(var(--text-muted))",
+      }}>
+        {exact && "✅ 13/13 tags — perfect!"}
+        {!exact && !overMax && `${count}/13 tags — need ${13 - count} more`}
+        {overMax && `${count}/13 — remove ${count - 13} extra tag${count - 13 > 1 ? "s" : ""} (tags after line 13 are highlighted in red)`}
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          className="input" style={{ fontSize: 13, height: 36 }}
-          placeholder={tags.length >= 13 ? "Max 13 tags reached" : "Type tag + Enter (use-hyphens-not-spaces)"}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); } }}
-          disabled={tags.length >= 13}
-        />
-        <button className="btn btn-secondary btn-sm" onClick={add} disabled={!input.trim() || tags.length >= 13}>Add</button>
-      </div>
-      <div style={{ fontSize: 11, color: tags.length === 13 ? "hsl(var(--status-success))" : "hsl(var(--text-muted))", marginTop: 4, fontWeight: tags.length === 13 ? 600 : 400 }}>
-        {tags.length}/13 tags · max 20 chars each
+      <div style={{ fontSize: 11, color: "hsl(var(--text-muted))", marginTop: 4 }}>
+        Spaces → hyphens · max 20 chars per tag · special chars removed automatically
       </div>
     </div>
   );
@@ -211,13 +232,14 @@ function ManualForm({
   onBack,
 }: {
   photos: UploadedPhoto[];
-  manualData: { title: string; description: string; tags: string[] };
-  onChange: (field: "title" | "description" | "tags", value: any) => void;
+  manualData: { title: string; description: string; tags: string[]; tagsRaw: string };
+  onChange: (field: "title" | "description" | "tagsRaw", value: any) => void;
   onSave: () => void;
   onBack: () => void;
 }) {
   const titleLen    = manualData.title.length;
-  const canSave     = manualData.title.trim().length > 0 && manualData.description.trim().length > 0 && manualData.tags.length === 13;
+  const parsedTags  = parseTagLines(manualData.tagsRaw);
+  const canSave     = manualData.title.trim().length > 0 && manualData.description.trim().length > 0 && parsedTags.length === 13;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20 }}>
@@ -273,10 +295,7 @@ function ManualForm({
               Etsy Tags <span style={{ color: "hsl(var(--status-error))" }}>*</span> — exactly 13 required
             </span>
           </div>
-          <TagInput tags={manualData.tags} onChange={v => onChange("tags", v)} />
-          <div style={{ marginTop: 10, fontSize: 11, color: "hsl(var(--text-muted))", lineHeight: 1.6 }}>
-            Examples: <code style={{ fontSize: 10 }}>press-on-nails</code> · <code style={{ fontSize: 10 }}>floral-nails</code> · <code style={{ fontSize: 10 }}>almond-shape</code> · <code style={{ fontSize: 10 }}>pink-nails</code> · <code style={{ fontSize: 10 }}>nail-art</code>
-          </div>
+          <TagTextarea rawText={manualData.tagsRaw} onRawChange={v => onChange("tagsRaw", v)} />
         </div>
       </div>
 
@@ -336,7 +355,7 @@ function ManualForm({
             {[
               { label: "Title",       ok: manualData.title.trim().length > 0       },
               { label: "Description", ok: manualData.description.trim().length > 0 },
-              { label: "13 Tags",     ok: manualData.tags.length === 13            },
+              { label: "13 Tags",     ok: parsedTags.length === 13                  },
               { label: "Photos",      ok: photos.length > 0                         },
             ].map(row => (
               <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
@@ -361,7 +380,7 @@ function ManualForm({
         </button>
         {!canSave && (
           <div style={{ fontSize: 11, color: "hsl(var(--text-muted))", textAlign: "center" }}>
-            {manualData.tags.length < 13 ? `Add ${13 - manualData.tags.length} more tag${13 - manualData.tags.length > 1 ? "s" : ""}` : "Fill all required fields"}
+            {parsedTags.length < 13 ? `Add ${13 - parsedTags.length} more tag${13 - parsedTags.length > 1 ? "s" : ""}` : "Fill all required fields"}
           </div>
         )}
       </div>
@@ -669,7 +688,7 @@ export default function NewListingPage() {
   const [sellerDescription, setSellerDescription] = useState("");
 
   // Manual mode state
-  const [manualData, setManualData] = useState({ title: "", description: "", tags: [] as string[] });
+  const [manualData, setManualData] = useState({ title: "", description: "", tagsRaw: "" });
 
   const addPhotos = useCallback((files: File[]) => {
     const newPhotos = files.slice(0, 10 - photos.length).map((file) => ({
@@ -778,7 +797,7 @@ export default function NewListingPage() {
     const result: AIResult = {
       title:       manualData.title,
       description: manualData.description,
-      tags:        manualData.tags,
+      tags:        parseTagLines(manualData.tagsRaw),
       style:       "Manual",
       colors:      [],
       occasion:    "Everyday",
@@ -794,7 +813,7 @@ export default function NewListingPage() {
     setStepStatus({});
     setImageProgress(null);
     setSellerDescription("");
-    setManualData({ title: "", description: "", tags: [] });
+    setManualData({ title: "", description: "", tagsRaw: "" });
     setStep("upload");
   };
 
