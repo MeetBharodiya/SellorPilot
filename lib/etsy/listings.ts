@@ -99,6 +99,60 @@ export async function resolveShopSectionId(sectionName?: string): Promise<number
   return sections[0].shop_section_id;
 }
 
+// ─── Readiness State Definitions ─────────────────────────────────────────────
+
+export interface EtsyReadinessStateDefinition {
+  readiness_state_id: number;
+  readiness_state: string;
+  min_processing_time: number;
+  max_processing_time: number;
+  processing_time_unit: string;
+}
+
+export async function getReadinessStateDefinitions(): Promise<EtsyReadinessStateDefinition[]> {
+  const shopId = await getShopId();
+  try {
+    const res = await etsy.get<{ count: number; results: EtsyReadinessStateDefinition[] }>(
+      `/application/shops/${shopId}/readiness-state-definitions`
+    );
+    return res.results ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getOrCreateReadinessStateId(): Promise<number | undefined> {
+  const shopId = await getShopId();
+  const existing = await getReadinessStateDefinitions();
+  if (existing.length > 0 && existing[0].readiness_state_id) {
+    return existing[0].readiness_state_id;
+  }
+
+  // If none exists, create a default "made_to_order" readiness state definition
+  try {
+    const created = await etsy.post<EtsyReadinessStateDefinition>(
+      `/application/shops/${shopId}/readiness-state-definitions`,
+      {
+        readiness_state: "made_to_order",
+        min_processing_time: 1,
+        max_processing_time: 7,
+        processing_time_unit: "days",
+      }
+    );
+    if (created?.readiness_state_id) {
+      return created.readiness_state_id;
+    }
+  } catch {
+    // If it conflicts or already exists, re-fetch
+    const retry = await getReadinessStateDefinitions();
+    if (retry.length > 0 && retry[0].readiness_state_id) {
+      return retry[0].readiness_state_id;
+    }
+  }
+
+  return undefined;
+}
+
 // ─── Create listing draft ──────────────────────────────────────────────────────
 
 export interface CreateListingPayload {
@@ -119,6 +173,13 @@ export async function createListing(
 ): Promise<EtsyListing> {
   const shopId = await getShopId();
 
+  let readinessStateId = payload.readinessStateId;
+  if (!readinessStateId) {
+    try {
+      readinessStateId = await getOrCreateReadinessStateId();
+    } catch {}
+  }
+
   const body: Record<string, unknown> = {
     title:               payload.title.slice(0, 140),
     description:         payload.description,
@@ -132,7 +193,7 @@ export async function createListing(
     is_supply:           false,
     state:               payload.state ?? "draft",
     shipping_profile_id: payload.shippingProfileId,
-    ...(payload.readinessStateId ? { readiness_state_id: payload.readinessStateId } : {}),
+    ...(readinessStateId ? { readiness_state_id: readinessStateId } : {}),
   };
 
   // FIX 5: include shop_section_id only if provided (undefined omits it)
@@ -259,6 +320,12 @@ export async function setListingInventory(listingId: string, listingSku?: string
     const existingInventory = await etsy.get<any>(`/application/listings/${listingId}/inventory`);
     readinessStateId = existingInventory?.products?.[0]?.offerings?.[0]?.readiness_state_id;
   } catch {}
+
+  if (!readinessStateId) {
+    try {
+      readinessStateId = await getOrCreateReadinessStateId();
+    } catch {}
+  }
 
   // Build cross-product of sizes × shapes
   // All variants share the same SKU (one listing = one SKU)

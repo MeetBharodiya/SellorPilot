@@ -4,10 +4,11 @@ import {
   uploadListingImage,
   getShippingProfiles,
   resolveShopSectionId,
+  getOrCreateReadinessStateId,
 } from "@/lib/etsy/listings";
 import { getActiveShop } from "@/lib/etsy/auth";
 import { getCategoryConfig } from "@/lib/categories/config";
-import { etsy, getShopId } from "@/lib/etsy/client";
+import { etsy } from "@/lib/etsy/client";
 
 export const maxDuration = 60;
 
@@ -203,7 +204,13 @@ export async function POST(req: NextRequest) {
             const existingInventory = await etsy.get<any>(`/application/listings/${etsyListingId}/inventory`);
             readinessStateId = existingInventory?.products?.[0]?.offerings?.[0]?.readiness_state_id;
           } catch {
-            // Not available — proceed without it (some shops don't require it)
+            // Not available
+          }
+
+          if (!readinessStateId) {
+            try {
+              readinessStateId = await getOrCreateReadinessStateId();
+            } catch {}
           }
 
           const { products, price_on_property } = buildSareeProducts(blouseOptions, colourOptions, globalPrice, readinessStateId);
