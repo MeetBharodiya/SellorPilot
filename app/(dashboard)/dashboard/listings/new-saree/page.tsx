@@ -182,7 +182,7 @@ export default function NewSareeListingPage() {
     tagsRaw:         "",
     globalPrice:     2500,
     section:         "Silk Sarees",
-    blouseStitching: { enabled: false, optionsRaw: "Stitched Blouse\nUnstitched Blouse", prices: {} },
+    blouseStitching: { enabled: false, optionsRaw: "Unstitched Blouse\nStitched Blouse", prices: { "Unstitched Blouse": 2500, "Stitched Blouse": 3200 } },
     colours:         { enabled: false, optionsRaw: "" },
   });
 
@@ -325,7 +325,22 @@ export default function NewSareeListingPage() {
                   {(["sarees", "lehengas"] as SareeCategory[]).map(cat => (
                     <button
                       key={cat}
-                      onClick={() => { set("categoryKey", cat); set("section", cat === "lehengas" ? LEHENGA_SECTIONS[0] : SAREE_SECTIONS[0]); }}
+                      onClick={() => {
+                        const isLehenga = cat === "lehengas";
+                        setForm(prev => ({
+                          ...prev,
+                          categoryKey:     cat,
+                          section:         isLehenga ? LEHENGA_SECTIONS[0] : SAREE_SECTIONS[0],
+                          globalPrice:     isLehenga ? 4500 : 2500,
+                          blouseStitching: {
+                            ...prev.blouseStitching,
+                            prices: {
+                              "Unstitched Blouse": isLehenga ? 4500 : 2500,
+                              "Stitched Blouse":   isLehenga ? 5500 : 3200,
+                            },
+                          },
+                        }));
+                      }}
                       className={form.categoryKey === cat ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}
                       style={{ gap: 6 }}
                     >
