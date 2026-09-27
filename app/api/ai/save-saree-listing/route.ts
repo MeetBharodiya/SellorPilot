@@ -37,6 +37,7 @@ function buildSareeProducts(
   blouseOptions: BlouseOption[],
   colourOptions: string[],
   globalPrice:   number,
+  readinessStateId?: number,
 ): {
   products:          object[];
   price_on_property: number[];
@@ -50,7 +51,7 @@ function buildSareeProducts(
       products: [{
         sku: "",
         property_values: [],
-        offerings: [{ price: globalPrice, quantity: 10, is_enabled: true, readiness_state_id: 1502437701331 }],
+        offerings: [{ price: globalPrice, quantity: 10, is_enabled: true, ...(readinessStateId ? { readiness_state_id: readinessStateId } : {}) }],
       }],
       price_on_property: [],
     };
@@ -68,7 +69,7 @@ function buildSareeProducts(
           price:              opt.price,
           quantity:           10,
           is_enabled:         true,
-          readiness_state_id: 1502437701331,
+          ...(readinessStateId ? { readiness_state_id: readinessStateId } : {}),
         }],
       })),
       price_on_property: [513],
@@ -87,7 +88,7 @@ function buildSareeProducts(
           price:              globalPrice,
           quantity:           10,
           is_enabled:         true,
-          readiness_state_id: 1502437701331,
+          ...(readinessStateId ? { readiness_state_id: readinessStateId } : {}),
         }],
       })),
       price_on_property: [],
@@ -107,7 +108,7 @@ function buildSareeProducts(
         price:              opt.price,
         quantity:           10,
         is_enabled:         true,
-        readiness_state_id: 1502437701331,
+        ...(readinessStateId ? { readiness_state_id: readinessStateId } : {}),
       }],
     }))
   );
@@ -196,8 +197,16 @@ export async function POST(req: NextRequest) {
         send("inventory", "loading");
         const hasAnyVariant = blouseOptions.length > 0 || colourOptions.length > 0;
         if (hasAnyVariant) {
-          const { products, price_on_property } = buildSareeProducts(blouseOptions, colourOptions, globalPrice);
-          const shopId = await getShopId();
+          // Fetch the readiness_state_id that belongs to THIS shop — it varies per shop
+          let readinessStateId: number | undefined;
+          try {
+            const existingInventory = await etsy.get<any>(`/application/listings/${etsyListingId}/inventory`);
+            readinessStateId = existingInventory?.products?.[0]?.offerings?.[0]?.readiness_state_id;
+          } catch {
+            // Not available — proceed without it (some shops don't require it)
+          }
+
+          const { products, price_on_property } = buildSareeProducts(blouseOptions, colourOptions, globalPrice, readinessStateId);
           await etsy.put(`/application/listings/${etsyListingId}/inventory`, {
             products,
             price_on_property,

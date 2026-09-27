@@ -132,7 +132,7 @@ export async function createListing(
     is_supply:           false,
     state:               payload.state ?? "draft",
     shipping_profile_id: payload.shippingProfileId,
-    readiness_state_id:  payload.readinessStateId ?? 1502437701331,
+    ...(payload.readinessStateId ? { readiness_state_id: payload.readinessStateId } : {}),
   };
 
   // FIX 5: include shop_section_id only if provided (undefined omits it)
@@ -254,6 +254,12 @@ export async function setListingInventory(listingId: string, listingSku?: string
 
   const priceIndia = SHOP_DEFAULTS.pricing.regions.india;   // ₹3,450
 
+  let readinessStateId: number | undefined;
+  try {
+    const existingInventory = await etsy.get<any>(`/application/listings/${listingId}/inventory`);
+    readinessStateId = existingInventory?.products?.[0]?.offerings?.[0]?.readiness_state_id;
+  } catch {}
+
   // Build cross-product of sizes × shapes
   // All variants share the same SKU (one listing = one SKU)
   const products = sizes.flatMap((size) =>
@@ -278,8 +284,7 @@ export async function setListingInventory(listingId: string, listingSku?: string
           price:              priceIndia,
           quantity:           SHOP_DEFAULTS.quantity,
           is_enabled:         true,
-          // Each offering requires readiness_state_id (same as the listing)
-          readiness_state_id: 1502437701331,
+          ...(readinessStateId ? { readiness_state_id: readinessStateId } : {}),
         },
       ],
     }))
