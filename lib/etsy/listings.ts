@@ -102,11 +102,15 @@ export async function resolveShopSectionId(sectionName?: string): Promise<number
 // ─── Readiness State Definitions ─────────────────────────────────────────────
 
 export interface EtsyReadinessStateDefinition {
+  shop_id?: number;
   readiness_state_id: number;
   readiness_state: string;
-  min_processing_time: number;
-  max_processing_time: number;
-  processing_time_unit: string;
+  min_processing_days?: number;
+  max_processing_days?: number;
+  processing_days_display_label?: string;
+  min_processing_time?: number;
+  max_processing_time?: number;
+  processing_time_unit?: string;
 }
 
 export async function getReadinessStateDefinitions(): Promise<EtsyReadinessStateDefinition[]> {

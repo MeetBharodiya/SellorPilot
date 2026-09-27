@@ -19,8 +19,9 @@ function encodeEvent(data: object) {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface BlouseOption {
-  name:  string;
-  price: number;
+  name:              string;
+  price:             number;
+  readinessStateId?: number;
 }
 
 // ─── Build inventory products for saree/lehenga variants ──────────────────────
@@ -61,18 +62,21 @@ function buildSareeProducts(
   // ── Blouse Stitching only ──────────────────────────────────────────────────
   if (hasBlouse && !hasColours) {
     return {
-      products: blouseOptions.map(opt => ({
-        sku: "",
-        property_values: [
-          { property_id: 513, property_name: "Blouse Stitching", values: [opt.name] },
-        ],
-        offerings: [{
-          price:              opt.price,
-          quantity:           10,
-          is_enabled:         true,
-          ...(readinessStateId ? { readiness_state_id: readinessStateId } : {}),
-        }],
-      })),
+      products: blouseOptions.map(opt => {
+        const rId = opt.readinessStateId || readinessStateId;
+        return {
+          sku: "",
+          property_values: [
+            { property_id: 513, property_name: "Blouse Stitching", values: [opt.name] },
+          ],
+          offerings: [{
+            price:              opt.price,
+            quantity:           10,
+            is_enabled:         true,
+            ...(rId ? { readiness_state_id: rId } : {}),
+          }],
+        };
+      }),
       price_on_property: [513],
     };
   }
@@ -97,9 +101,10 @@ function buildSareeProducts(
   }
 
   // ── Both Blouse Stitching × Colours ───────────────────────────────────────
-  // Price varies by stitching option; colour is cosmetic
-  const products = blouseOptions.flatMap(opt =>
-    colourOptions.map(colour => ({
+  // Price and readiness state vary by stitching option; colour is cosmetic
+  const products = blouseOptions.flatMap(opt => {
+    const rId = opt.readinessStateId || readinessStateId;
+    return colourOptions.map(colour => ({
       sku: "",
       property_values: [
         { property_id: 513, property_name: "Blouse Stitching", values: [opt.name] },
@@ -109,10 +114,10 @@ function buildSareeProducts(
         price:              opt.price,
         quantity:           10,
         is_enabled:         true,
-        ...(readinessStateId ? { readiness_state_id: readinessStateId } : {}),
+        ...(rId ? { readiness_state_id: rId } : {}),
       }],
-    }))
-  );
+    }));
+  });
 
   return { products, price_on_property: [513] };
 }

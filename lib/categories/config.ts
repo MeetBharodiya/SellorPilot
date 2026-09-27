@@ -37,7 +37,7 @@ export const CATEGORIES: Record<CategoryKey, CategoryConfig> = {
   sarees: {
     key:                   "sarees",
     label:                 "Sarees",
-    etsyTaxonomyId:        1249,        // Clothing > Cultural & Ethnic Clothing > Sarees
+    etsyTaxonomyId:        12169,       // Clothing > Women's Clothing > Sarees
     requiresDescription:   true,
     descriptionLabel:      "Product Description (required)",
     descriptionPlaceholder: "e.g. Pure Banarasi silk saree, zari border, 5.5m length, unstitched blouse 0.85m included, dry clean only, suitable for weddings and festivals",
@@ -50,7 +50,7 @@ export const CATEGORIES: Record<CategoryKey, CategoryConfig> = {
   lehengas: {
     key:                   "lehengas",
     label:                 "Lehengas",
-    etsyTaxonomyId:        1249,        // Clothing > Cultural & Ethnic Clothing (same as sarees — update if needed)
+    etsyTaxonomyId:        12183,       // Clothing > Women's Clothing > Lehengas
     requiresDescription:   true,
     descriptionLabel:      "Product Description (required)",
     descriptionPlaceholder: "e.g. Embroidered lehenga choli set, heavy zardozi work, dupatta included, semi-stitched, suitable for weddings",

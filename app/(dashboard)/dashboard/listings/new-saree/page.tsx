@@ -8,14 +8,26 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface UploadedPhoto { id: string; file: File; preview: string; }
 type SareeCategory = "sarees" | "lehengas";
 type StepStatus = "pending" | "loading" | "done" | "error";
 
-interface BlouseOption { name: string; price: number; }
+interface ReadinessDef {
+  readiness_state_id: number;
+  readiness_state: string;
+  min_processing_days?: number;
+  max_processing_days?: number;
+  processing_days_display_label?: string;
+}
+
+interface BlouseOption {
+  name:              string;
+  price:             number;
+  readinessStateId?: number;
+}
 
 interface SareeFormData {
   categoryKey:      SareeCategory;
@@ -25,9 +37,10 @@ interface SareeFormData {
   globalPrice:      number;
   section:          string;
   blouseStitching: {
-    enabled:     boolean;
-    optionsRaw:  string;              // one option per line
-    prices:      Record<string, number>;
+    enabled:         boolean;
+    optionsRaw:      string;              // one option per line
+    prices:          Record<string, number>;
+    readinessStates: Record<string, number>; // opt name -> readiness_state_id
   };
   colours: {
     enabled:    boolean;
@@ -175,6 +188,8 @@ export default function NewSareeListingPage() {
   const [stepStatus,    setStepStatus]    = useState<Record<string, StepStatus>>({});
   const [imageProgress, setImageProgress] = useState<{ done: number; total: number } | null>(null);
 
+  const [readinessDefs, setReadinessDefs] = useState<ReadinessDef[]>([]);
+
   const [form, setForm] = useState<SareeFormData>({
     categoryKey:     "sarees",
     title:           "",
@@ -182,9 +197,42 @@ export default function NewSareeListingPage() {
     tagsRaw:         "",
     globalPrice:     2500,
     section:         "Silk Sarees",
-    blouseStitching: { enabled: false, optionsRaw: "Unstitched Blouse\nStitched Blouse", prices: { "Unstitched Blouse": 2500, "Stitched Blouse": 3200 } },
+    blouseStitching: {
+      enabled:         false,
+      optionsRaw:      "Unstitched Blouse\nStitched Blouse",
+      prices:          { "Unstitched Blouse": 2500, "Stitched Blouse": 3200 },
+      readinessStates: {},
+    },
     colours:         { enabled: false, optionsRaw: "" },
   });
+
+  useEffect(() => {
+    fetch("/api/etsy/readiness-definitions")
+      .then(res => res.json())
+      .then(data => {
+        if (data.results && data.results.length > 0) {
+          setReadinessDefs(data.results);
+          // Set intelligent defaults for common blouse options
+          setForm(prev => {
+            const rStates = { ...prev.blouseStitching.readinessStates };
+            const rts = data.results.find((r: ReadinessDef) => r.readiness_state === "ready_to_ship" || (r.min_processing_days ?? 0) <= 2) || data.results[0];
+            const mto = data.results.find((r: ReadinessDef) => r.readiness_state === "made_to_order" && (r.min_processing_days ?? 0) >= 3) || data.results[data.results.length - 1];
+
+            if (!rStates["Unstitched Blouse"] && rts) {
+              rStates["Unstitched Blouse"] = rts.readiness_state_id;
+            }
+            if (!rStates["Stitched Blouse"] && mto) {
+              rStates["Stitched Blouse"] = mto.readiness_state_id;
+            }
+            return {
+              ...prev,
+              blouseStitching: { ...prev.blouseStitching, readinessStates: rStates },
+            };
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const set = (path: string, value: any) => {
     setForm(prev => {
@@ -212,11 +260,24 @@ export default function NewSareeListingPage() {
   const colourLines   = parseLines(form.colours.optionsRaw);
   const sections      = form.categoryKey === "lehengas" ? LEHENGA_SECTIONS : SAREE_SECTIONS;
 
-  // Blouse options with prices (fill in default price if not set yet)
-  const blouseOptions: BlouseOption[] = blouseLines.map(name => ({
-    name,
-    price: form.blouseStitching.prices[name] ?? (form.categoryKey === "lehengas" ? 4500 : 2500),
-  }));
+  // Blouse options with prices and processing profile
+  const blouseOptions: BlouseOption[] = blouseLines.map(name => {
+    let rId = form.blouseStitching.readinessStates[name];
+    if (!rId && readinessDefs.length > 0) {
+      if (/unstitched|ready/i.test(name)) {
+        const rts = readinessDefs.find(r => r.readiness_state === "ready_to_ship" || (r.min_processing_days ?? 0) <= 2);
+        rId = rts ? rts.readiness_state_id : readinessDefs[0].readiness_state_id;
+      } else {
+        const mto = readinessDefs.find(r => r.readiness_state === "made_to_order" && (r.min_processing_days ?? 0) >= 3);
+        rId = mto ? mto.readiness_state_id : readinessDefs[readinessDefs.length - 1].readiness_state_id;
+      }
+    }
+    return {
+      name,
+      price: form.blouseStitching.prices[name] ?? (form.categoryKey === "lehengas" ? 4500 : 2500),
+      readinessStateId: rId,
+    };
+  });
 
   const canSave = (
     form.title.trim().length > 0 &&
@@ -481,32 +542,67 @@ export default function NewSareeListingPage() {
                       />
                     </div>
 
-                    {/* Price per option */}
+                    {/* Price & Processing Profile per option */}
                     {blouseLines.length > 0 && (
                       <div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--text-muted))", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.04em" }}>Price per option (₹)</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 180px", gap: 10, fontSize: 11, fontWeight: 600, color: "hsl(var(--text-muted))", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em", padding: "0 4px" }}>
+                          <span>Option</span>
+                          <span style={{ textAlign: "right" }}>Price (₹)</span>
+                          <span>Processing Time</span>
+                        </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {blouseLines.map(opt => (
-                            <div key={opt} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <span style={{ flex: 1, fontSize: 13, color: "hsl(var(--text-secondary))", fontWeight: 500 }}>{opt}</span>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <span style={{ fontSize: 13, color: "hsl(var(--text-muted))" }}>₹</span>
-                                <input
-                                  type="number" className="input"
-                                  style={{ width: 110, fontSize: 13, height: 34, textAlign: "right" }}
-                                  value={form.blouseStitching.prices[opt] ?? (form.categoryKey === "lehengas" ? 4500 : 2500)}
-                                  onChange={e => setForm(prev => ({
-                                    ...prev,
-                                    blouseStitching: {
-                                      ...prev.blouseStitching,
-                                      prices: { ...prev.blouseStitching.prices, [opt]: Number(e.target.value) }
-                                    }
-                                  }))}
-                                  min={0}
-                                />
+                          {blouseLines.map(opt => {
+                            const currentRId = form.blouseStitching.readinessStates[opt];
+                            return (
+                              <div key={opt} style={{ display: "grid", gridTemplateColumns: "1fr 120px 180px", alignItems: "center", gap: 10, padding: "8px 12px", background: "hsl(var(--bg-elevated))", borderRadius: 8, border: "1px solid hsl(var(--bg-border))" }}>
+                                <span style={{ fontSize: 13, color: "hsl(var(--text-primary))", fontWeight: 600 }}>{opt}</span>
+                                
+                                {/* Price */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
+                                  <span style={{ fontSize: 12, color: "hsl(var(--text-muted))" }}>₹</span>
+                                  <input
+                                    type="number" className="input"
+                                    style={{ width: 90, fontSize: 13, height: 32, textAlign: "right" }}
+                                    value={form.blouseStitching.prices[opt] ?? (form.categoryKey === "lehengas" ? 4500 : 2500)}
+                                    onChange={e => setForm(prev => ({
+                                      ...prev,
+                                      blouseStitching: {
+                                        ...prev.blouseStitching,
+                                        prices: { ...prev.blouseStitching.prices, [opt]: Number(e.target.value) }
+                                      }
+                                    }))}
+                                    min={0}
+                                  />
+                                </div>
+
+                                {/* Processing Profile Select */}
+                                <div>
+                                  {readinessDefs.length > 0 ? (
+                                    <select
+                                      className="input"
+                                      style={{ height: 32, fontSize: 11, padding: "0 6px", cursor: "pointer", width: "100%" }}
+                                      value={currentRId || ""}
+                                      onChange={e => setForm(prev => ({
+                                        ...prev,
+                                        blouseStitching: {
+                                          ...prev.blouseStitching,
+                                          readinessStates: { ...prev.blouseStitching.readinessStates, [opt]: Number(e.target.value) }
+                                        }
+                                      }))}
+                                    >
+                                      {readinessDefs.map(def => (
+                                        <option key={def.readiness_state_id} value={def.readiness_state_id}>
+                                          {def.readiness_state === "ready_to_ship" ? "⚡ Ready to ship" : "🧵 Made to order"} ({def.processing_days_display_label || `${def.min_processing_days}-${def.max_processing_days} days`})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: "hsl(var(--text-muted))" }}>Auto-managed</span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
