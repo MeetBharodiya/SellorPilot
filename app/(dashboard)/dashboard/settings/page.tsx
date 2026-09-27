@@ -8,9 +8,8 @@ import {
   CheckCircle, RefreshCw, Wifi, WifiOff, Link2,
   Plus, Trash2, Store, Check,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-
 
 const DEFAULT_NOTIFICATIONS = [
   { key: "new_order",   label: "New order received",          desc: "Alert when a buyer places an order",               on: true  },
@@ -20,6 +19,14 @@ const DEFAULT_NOTIFICATIONS = [
 ];
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted">Loading settings...</div>}>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+function SettingsContent() {
   const searchParams = useSearchParams();
   const { success, error: toastError, info } = useToast();
   // ✅ Single source of truth — same context used by Sidebar
