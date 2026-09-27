@@ -5,7 +5,7 @@
  * To add a new category: add an entry to CATEGORIES and create a matching prompt file.
  */
 
-export type CategoryKey = "press_on_nails" | "sarees";
+export type CategoryKey = "press_on_nails" | "sarees" | "lehengas";
 
 export interface CategoryConfig {
   key:                   CategoryKey;
@@ -37,14 +37,27 @@ export const CATEGORIES: Record<CategoryKey, CategoryConfig> = {
   sarees: {
     key:                   "sarees",
     label:                 "Sarees",
-    etsyTaxonomyId:        1249,        // Clothing > Traditional Wear > Sarees
-    requiresDescription:   true,        // Fabric, length, blouse cannot be seen from photos
+    etsyTaxonomyId:        1249,        // Clothing > Cultural & Ethnic Clothing > Sarees
+    requiresDescription:   true,
     descriptionLabel:      "Product Description (required)",
     descriptionPlaceholder: "e.g. Pure Banarasi silk saree, zari border, 5.5m length, unstitched blouse 0.85m included, dry clean only, suitable for weddings and festivals",
-    skipInventoryVariants: true,        // Sarees are listed individually, no size/shape variants
+    skipInventoryVariants: true,
     sectionOptions:        ["Silk Sarees", "Cotton Sarees", "Designer Sarees", "Bridal Sarees"],
     defaultPrice:          2500,
     icon:                  "🥻",
+  },
+
+  lehengas: {
+    key:                   "lehengas",
+    label:                 "Lehengas",
+    etsyTaxonomyId:        1249,        // Clothing > Cultural & Ethnic Clothing (same as sarees — update if needed)
+    requiresDescription:   true,
+    descriptionLabel:      "Product Description (required)",
+    descriptionPlaceholder: "e.g. Embroidered lehenga choli set, heavy zardozi work, dupatta included, semi-stitched, suitable for weddings",
+    skipInventoryVariants: true,
+    sectionOptions:        ["Bridal Lehengas", "Party Wear Lehengas", "Designer Lehengas", "Embroidered Sets"],
+    defaultPrice:          4500,
+    icon:                  "👗",
   },
 };
 

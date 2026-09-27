@@ -22,9 +22,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CATEGORY_LIST, getCategoryConfig, DEFAULT_CATEGORY } from "@/lib/categories/config";
 import type { CategoryKey } from "@/lib/categories/config";
+import { useShop } from "@/context/ShopContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface UploadedPhoto {
@@ -232,7 +233,7 @@ function ManualForm({
   onBack,
 }: {
   photos: UploadedPhoto[];
-  manualData: { title: string; description: string; tags: string[]; tagsRaw: string };
+  manualData: { title: string; description: string; tagsRaw: string };
   onChange: (field: "title" | "description" | "tagsRaw", value: any) => void;
   onSave: () => void;
   onBack: () => void;
@@ -675,6 +676,15 @@ function DoneScreen({ onNewListing }: { onNewListing: () => void }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function NewListingPage() {
   const { success, error: toastError } = useToast();
+  const router = useRouter();
+  const { shop } = useShop();
+
+  // Redirect Parampara Couture users to the saree-specific listing page
+  useEffect(() => {
+    if (shop.shopName && /parampara/i.test(shop.shopName)) {
+      router.replace("/dashboard/listings/new-saree");
+    }
+  }, [shop.shopName, router]);
 
   const [mode,             setMode]             = useState<Mode>("ai");
   const [step,             setStep]             = useState<Step>("upload");
