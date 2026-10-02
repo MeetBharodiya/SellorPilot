@@ -60,8 +60,6 @@ export const SHOP_DEFAULTS = {
     name: "Shape",
     options: [
       { name: "Stiletto", enabled: true },
-      { name: "Square", enabled: true },
-      { name: "Soft Square", enabled: true },
       { name: "Oval", enabled: true },
       { name: "Coffin / Ballerina", enabled: true },
       { name: "Almond", enabled: true },

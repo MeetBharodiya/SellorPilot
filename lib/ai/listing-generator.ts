@@ -82,7 +82,7 @@ export function getMockAIResult(): AIListingResult {
 
 ${buildSizeGuideText()}
 
-Available Shapes: Stiletto, Square, Soft Square, Oval, Coffin / Ballerina, Almond
+Available Shapes: Stiletto, Oval, Coffin / Ballerina, Almond
 
 ${SHOP_DEFAULTS.descriptionTemplate.footer}`,
     tags: [
